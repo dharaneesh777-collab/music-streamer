@@ -1,13 +1,15 @@
-﻿import { createContext, useState, useEffect } from 'react';
+﻿import { createContext, useState, useEffect, useRef } from 'react';
 
 export const PlayerContext = createContext();
 
 export const PlayerProvider = ({ children }) => {
     const [currentTrack, setCurrentTrack] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [audio] = useState(() => new Audio());
+    const [volume, setVolume] = useState(1);
+    const audioRef = useRef(new Audio());
 
     useEffect(() => {
+        const audio = audioRef.current;
         const updatePlayState = () => setIsPlaying(!audio.paused);
         const handleEnded = () => setIsPlaying(false);
         
@@ -20,22 +22,29 @@ export const PlayerProvider = ({ children }) => {
             audio.removeEventListener('pause', updatePlayState);
             audio.removeEventListener('ended', handleEnded);
         };
-    }, [audio]);
+    }, []);
 
     useEffect(() => {
+        audioRef.current.volume = volume;
+    }, [volume]);
+
+    useEffect(() => {
+        const audio = audioRef.current;
         if (currentTrack) {
             audio.src = currentTrack.audioUrl;
+            audio.volume = volume;
             audio.play().catch(err => console.error("Playback blocked:", err));
         }
-    }, [currentTrack, audio]);
+    }, [currentTrack]);
 
     const togglePlay = () => {
+        const audio = audioRef.current;
         if (audio.paused) audio.play().catch(err => console.error("Playback blocked:", err));
         else audio.pause();
     };
 
-    // NEW: Function to completely halt and dismiss the player
     const closePlayer = () => {
+        const audio = audioRef.current;
         audio.pause();
         audio.currentTime = 0;
         setCurrentTrack(null);
@@ -43,7 +52,7 @@ export const PlayerProvider = ({ children }) => {
     };
 
     return (
-        <PlayerContext.Provider value={{ currentTrack, setCurrentTrack, isPlaying, togglePlay, closePlayer, audioRef: { current: audio } }}>
+        <PlayerContext.Provider value={{ currentTrack, setCurrentTrack, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef }}>
             {children}
         </PlayerContext.Provider>
     );
