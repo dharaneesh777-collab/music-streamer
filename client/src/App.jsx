@@ -30,13 +30,11 @@ function App() {
     return (
         <PlayerProvider>
             <Router>
-                <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
-                    {/* Sidebar hidden on mobile, visible on medium+ screens */}
+                <div className="flex h-screen bg-gray-950 text-white overflow-hidden relative">
                     <div className="hidden md:flex">
                         <Sidebar />
                     </div>
                     
-                    {/* Added bottom padding on mobile to prevent content hiding behind bottom nav & player */}
                     <div className="flex-1 overflow-y-auto pb-44 md:pb-28">
                         <Routes>
                             <Route path="/" element={<Home />} />
@@ -45,6 +43,13 @@ function App() {
                         </Routes>
                     </div>
                     
+                    {/* NEW: Developer Signature Badge */}
+                    <div className="fixed md:bottom-28 bottom-44 right-4 md:right-8 z-30 pointer-events-none opacity-90">
+                        <div className="bg-[#2d2a24] text-[#e0b94c] px-4 py-2 rounded-lg shadow-[0_4px_15px_rgba(0,0,0,0.5)] border border-[#3d3a33] text-xs md:text-sm font-semibold tracking-wide flex items-center justify-center">
+                            Website by Dharaneesh Rajamanickam
+                        </div>
+                    </div>
+
                     <BottomNav />
                     <Player />
                 </div>
