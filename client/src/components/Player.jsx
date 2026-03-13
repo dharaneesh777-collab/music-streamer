@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../config';
 const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : '';
 
 const Player = () => {
-    const { currentTrack, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef } = useContext(PlayerContext);
+    const { currentTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef } = useContext(PlayerContext);
     const [progress, setProgress] = useState(0);
     const [currentTime, setCurrentTime] = useState('0:00');
     const [duration, setDuration] = useState('0:00');
@@ -126,11 +126,11 @@ const Player = () => {
 
             <div className="flex flex-col items-center w-[45%] md:w-2/4">
                 <div className="flex gap-4 md:gap-6 items-center justify-end md:justify-center w-full">
-                    <button className="hidden md:block text-gray-400 hover:text-white transition">⏮</button>
+                    <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
                     <button onClick={togglePlay} className="h-10 w-10 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0">
                         {isPlaying ? '⏸' : '▶'}
                     </button>
-                    <button className="hidden md:block text-gray-400 hover:text-white transition">⏭</button>
+                    <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
                     <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
                 </div>
                 

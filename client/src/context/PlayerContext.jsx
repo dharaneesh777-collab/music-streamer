@@ -4,7 +4,7 @@ export const PlayerContext = createContext();
 
 export const PlayerProvider = ({ children }) => {
     const [currentTrack, setCurrentTrack] = useState(null);
-    const [trackQueue, setTrackQueue] = useState([]); // NEW: Holds the entire playlist for auto-play
+    const [trackQueue, setTrackQueue] = useState([]); 
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(1);
     const audioRef = useRef(new Audio());
@@ -14,28 +14,28 @@ export const PlayerProvider = ({ children }) => {
         if (queue.length > 0) setTrackQueue(queue);
     };
 
+    // NEW: Manual Next Button Logic
+    const playNext = () => {
+        if (trackQueue.length === 0 || !currentTrack) return;
+        const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
+        if (currentIndex !== -1 && currentIndex + 1 < trackQueue.length) {
+            setCurrentTrack(trackQueue[currentIndex + 1]);
+        }
+    };
+
+    // NEW: Manual Previous Button Logic
+    const playPrevious = () => {
+        if (trackQueue.length === 0 || !currentTrack) return;
+        const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
+        if (currentIndex > 0) {
+            setCurrentTrack(trackQueue[currentIndex - 1]);
+        }
+    };
+
     useEffect(() => {
         const audio = audioRef.current;
         const updatePlayState = () => setIsPlaying(!audio.paused);
-        
-        // UPGRADED: Logic to automatically find and play the next song in the queue
-        const handleEnded = () => {
-            setTrackQueue(prevQueue => {
-                setCurrentTrack(prevTrack => {
-                    if (!prevTrack || prevQueue.length === 0) {
-                        setIsPlaying(false);
-                        return prevTrack;
-                    }
-                    const currentIndex = prevQueue.findIndex(t => t.id === prevTrack.id);
-                    if (currentIndex !== -1 && currentIndex + 1 < prevQueue.length) {
-                        return prevQueue[currentIndex + 1]; 
-                    }
-                    setIsPlaying(false);
-                    return prevTrack;
-                });
-                return prevQueue;
-            });
-        };
+        const handleEnded = () => playNext(); // Auto-play relies on the exact same logic
         
         audio.addEventListener('play', updatePlayState);
         audio.addEventListener('pause', updatePlayState);
@@ -46,7 +46,7 @@ export const PlayerProvider = ({ children }) => {
             audio.removeEventListener('pause', updatePlayState);
             audio.removeEventListener('ended', handleEnded);
         };
-    }, []);
+    }, [trackQueue, currentTrack]); // Added dependencies to ensure it tracks correctly
 
     useEffect(() => { audioRef.current.volume = volume; }, [volume]);
 
@@ -75,7 +75,7 @@ export const PlayerProvider = ({ children }) => {
     };
 
     return (
-        <PlayerContext.Provider value={{ currentTrack, playTrack, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef }}>
+        <PlayerContext.Provider value={{ currentTrack, playTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef }}>
             {children}
         </PlayerContext.Provider>
     );

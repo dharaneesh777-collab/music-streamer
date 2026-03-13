@@ -7,6 +7,8 @@ const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '
 const Search = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
+    const [albums, setAlbums] = useState([]); // NEW: Holds Official Albums/Movies
+    const [activeAlbumName, setActiveAlbumName] = useState(null); // Tracks if viewing inside an album
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const { playTrack } = useContext(PlayerContext);
@@ -16,30 +18,44 @@ const Search = () => {
             if (query.trim()) {
                 setLoading(true);
                 setError(null);
+                setActiveAlbumName(null); // Reset album view on new search
+                
+                // Fetch Official Albums
+                fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&type=albums`)
+                    .then(res => res.json())
+                    .then(data => setAlbums(data.success && Array.isArray(data.data) ? data.data : []))
+                    .catch(() => setAlbums([]));
+
+                // Fetch Standalone Tracks
                 fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`)
                     .then(res => res.json())
                     .then(data => {
-                        if (data && data.success && Array.isArray(data.data)) {
-                            setResults(data.data);
-                        } else {
-                            setResults([]);
-                            setError("Unable to find tracks.");
-                        }
+                        setResults(data.success && Array.isArray(data.data) ? data.data : []);
                         setLoading(false);
                     })
-                    .catch(err => {
-                        console.error(err);
-                        setResults([]);
-                        setError("Network error connecting to the backend server.");
-                        setLoading(false);
-                    });
+                    .catch(() => { setError("Network error."); setLoading(false); });
             } else {
-                setResults([]);
-                setError(null);
+                setResults([]); setAlbums([]); setError(null); setActiveAlbumName(null);
             }
         }, 500);
         return () => clearTimeout(delayDebounceFn);
     }, [query]);
+
+    // NEW: Action when user clicks an Official Box
+    const handleAlbumClick = (album) => {
+        setLoading(true);
+        fetch(`${API_BASE_URL}/api/search?id=${album.id}&type=albumDetails`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data.length > 0) {
+                    setResults(data.data); // Replace tracks with official album tracks
+                    setActiveAlbumName(album.title);
+                } else {
+                    alert("This official soundtrack is not currently streamable.");
+                }
+                setLoading(false);
+            });
+    };
 
     return (
         <div className="p-4 md:p-8">
@@ -54,24 +70,46 @@ const Search = () => {
             {loading && <p className="text-sm md:text-base text-gray-400 mb-4 animate-pulse">Searching the database...</p>}
             {error && <div className="text-red-400 mb-6 bg-red-900/20 p-4 rounded border border-red-900 text-sm md:text-base">{error}</div>}
             
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
-                {results.map(track => (
-                    <div 
-                        key={track.id} 
-                        className="bg-gray-800 p-3 md:p-4 rounded-lg cursor-pointer hover:bg-gray-700 transition active:scale-[0.98]"
-                        onClick={() => playTrack(track, results)}
-                    >
-                        <div className="relative mb-3 md:mb-4">
-                            <img src={track.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-lg" />
-                            <span className={`absolute top-1 right-1 md:top-2 md:right-2 text-[8px] md:text-[10px] uppercase font-bold px-1.5 md:px-2 py-0.5 md:py-1 rounded shadow-md backdrop-blur-sm ${track.tag === 'Original' ? 'bg-green-500/90 text-black' : 'bg-gray-900/80 text-white'}`}>
-                                {track.tag || 'Original'}
-                            </span>
-                        </div>
-                        <h3 className="text-sm md:text-base font-semibold truncate">{cleanText(track.title)}</h3>
-                        <p className="text-[10px] md:text-sm text-gray-400 truncate">{cleanText(track.artist)}</p>
+            {/* NEW: Official Soundtracks Carousel */}
+            {albums.length > 0 && !activeAlbumName && !loading && (
+                <div className="mb-10">
+                    <h2 className="text-lg md:text-xl font-bold mb-4 text-green-400">Official Movies & Albums</h2>
+                    <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+                        {albums.map(album => (
+                            <div key={album.id} onClick={() => handleAlbumClick(album)} className="min-w-[130px] md:min-w-[160px] bg-green-900/20 border border-green-800 p-2 md:p-3 rounded-lg cursor-pointer hover:bg-green-800/40 transition flex-shrink-0 active:scale-95 shadow-lg">
+                                <img src={album.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-md mb-2 md:mb-3" />
+                                <h3 className="text-xs md:text-sm font-bold truncate">{cleanText(album.title)}</h3>
+                                <p className="text-[9px] md:text-[11px] text-green-500 truncate mt-1 uppercase tracking-wider font-semibold">Official Album</p>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                    <hr className="border-gray-800 mt-2" />
+                </div>
+            )}
+
+            {/* Results Grid (Changes based on whether an album was clicked) */}
+            {(results.length > 0 || activeAlbumName) && (
+                <div>
+                    <h2 className="text-lg md:text-xl font-bold mb-4">
+                        {activeAlbumName ? <span className="text-white">Official Tracks: <span className="text-green-400">{cleanText(activeAlbumName)}</span></span> : 'Individual Songs'}
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6 pb-20">
+                        {results.map(track => (
+                            <div 
+                                key={track.id} 
+                                className="bg-gray-800 p-3 md:p-4 rounded-lg cursor-pointer hover:bg-gray-700 transition active:scale-[0.98]"
+                                onClick={() => playTrack(track, results)}
+                            >
+                                <div className="relative mb-3 md:mb-4">
+                                    <img src={track.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-lg" />
+                                </div>
+                                <h3 className="text-sm md:text-base font-semibold truncate">{cleanText(track.title)}</h3>
+                                <p className="text-[10px] md:text-sm text-gray-400 truncate">{cleanText(track.artist)}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

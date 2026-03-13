@@ -1,6 +1,5 @@
 ﻿const axios = require('axios');
 
-// ADDED: 'anime' query to the backend logic
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj', 'anime': 'anime openings top hits' };
 
 const getFullLengthAudio = (track) => {
@@ -75,7 +74,7 @@ const getArtistPlaylist = async (req, res) => {
             allRawTracks = allRawTracks.concat(rawPage);
         }
         res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req)) });
-    } catch (error) { res.status(500).json({ success: false, message: 'Error loading artist playlist' }); }
+    } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
 };
 
 const fetchTrending = async (req, res) => {
@@ -85,10 +84,40 @@ const fetchTrending = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
+// UPGRADED: Unified Search handling standard songs, searching albums, and fetching album songs
 const searchTracks = async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.json({ success: true, data: [] });
+    const { q, type, id } = req.query;
+    if (!q && !id) return res.json({ success: true, data: [] });
+
     try {
+        // Mode 1: Search for Official Albums/Movies
+        if (type === 'albums') {
+            for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
+                try {
+                    const resProxy = await axios.get(`${proxy}?query=${encodeURIComponent(q)}`);
+                    let results = resProxy.data?.data?.results || resProxy.data?.results || [];
+                    const formatted = results.map(a => ({
+                        id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true
+                    }));
+                    if(formatted.length > 0) return res.json({ success: true, data: formatted });
+                } catch(e) {}
+            }
+            return res.json({ success: true, data: [] });
+        }
+
+        // Mode 2: Fetch specific Official Songs from an Album
+        if (type === 'albumDetails') {
+            for (const proxy of ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id=']) {
+                try {
+                    const resProxy = await axios.get(`${proxy}${id}`);
+                    let songs = resProxy.data?.data?.songs || resProxy.data?.songs || [];
+                    if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req)) });
+                } catch(e) {}
+            }
+            return res.json({ success: true, data: [] });
+        }
+
+        // Mode 3: Standard track search
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=40`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
