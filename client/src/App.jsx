@@ -31,27 +31,39 @@ function App() {
     const [isInstallable, setIsInstallable] = useState(false);
 
     useEffect(() => {
-        // Check if the HTML global trap already caught the signal
-        const checkPrompt = () => {
-            if (window.deferredPrompt) {
-                setIsInstallable(true);
-            }
+        // Listener 1: Direct OS signal
+        const handleDirectPrompt = (e) => {
+            e.preventDefault();
+            window.deferredPrompt = e;
+            setIsInstallable(true);
         };
-        
-        checkPrompt(); 
-        window.addEventListener('pwa-install-ready', checkPrompt);
-        
-        return () => window.removeEventListener('pwa-install-ready', checkPrompt);
+
+        // Listener 2: Trapped signal from index.html
+        const handleTrappedPrompt = () => {
+            if (window.deferredPrompt) setIsInstallable(true);
+        };
+
+        window.addEventListener('beforeinstallprompt', handleDirectPrompt);
+        window.addEventListener('pwa-install-ready', handleTrappedPrompt);
+
+        // Failsafe: Check immediately on mount
+        if (window.deferredPrompt) setIsInstallable(true);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleDirectPrompt);
+            window.removeEventListener('pwa-install-ready', handleTrappedPrompt);
+        };
     }, []);
 
     const handleInstallClick = async () => {
-        if (window.deferredPrompt) {
-            window.deferredPrompt.prompt();
-            const { outcome } = await window.deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-                setIsInstallable(false);
-                window.deferredPrompt = null;
-            }
+        if (!window.deferredPrompt) return;
+        
+        window.deferredPrompt.prompt();
+        const { outcome } = await window.deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+            setIsInstallable(false);
+            window.deferredPrompt = null;
         }
     };
 
@@ -60,7 +72,7 @@ function App() {
             <Router>
                 <div className="flex h-screen bg-gray-950 text-white overflow-hidden relative">
                     
-                    {/* The Install Button renders securely using the trapped signal */}
+                    {/* The definitively patched Install Button */}
                     {isInstallable && (
                         <button 
                             onClick={handleInstallClick} 
