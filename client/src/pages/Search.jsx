@@ -19,13 +19,13 @@ const Search = () => {
         const delayDebounceFn = setTimeout(() => {
             if (query.trim()) {
                 setLoading(true); setActiveAlbumName(null); 
-                const modifiedQuery = activeLang === 'All' ? query : `${query} ${activeLang}`;
                 
-                fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(modifiedQuery)}&type=albums`)
+                // UPGRADED: Pass language securely via URL parameters instead of hacking the search text
+                fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&lang=${activeLang}&type=albums`)
                     .then(res => res.json())
                     .then(data => setAlbums(data.success && Array.isArray(data.data) ? data.data : []));
 
-                fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(modifiedQuery)}`)
+                fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&lang=${activeLang}`)
                     .then(res => res.json())
                     .then(data => { setResults(data.success ? data.data : []); setLoading(false); });
             } else { setResults([]); setAlbums([]); setActiveAlbumName(null); }

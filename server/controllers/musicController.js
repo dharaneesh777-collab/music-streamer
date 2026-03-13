@@ -45,10 +45,17 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-const processResults = (results, req) => {
+// UPGRADED: Strict Language Filter applied at the data processing level
+const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
     return results.map(track => {
+        // STRICT FILTER: Drop tracks that belong to a different language
+        if (targetLang !== 'all' && track.language) {
+            if (track.language.toLowerCase() !== targetLang) return null;
+        }
+
         const originalUrl = getFullLengthAudio(track);
         return {
             id: track.id || Math.random().toString(),
@@ -59,7 +66,7 @@ const processResults = (results, req) => {
             duration: track.duration || 180,
             tag: (track.name || track.title || "").toLowerCase().includes('remix') ? 'Remix' : 'Original'
         };
-    }).filter(track => track.audioUrl);
+    }).filter(track => track !== null && track.audioUrl);
 };
 
 const getArtistPlaylist = async (req, res) => {
@@ -71,7 +78,7 @@ const getArtistPlaylist = async (req, res) => {
             const resultsArray = await Promise.all(promises);
             let allRawTracks = [];
             resultsArray.forEach(res => { if (Array.isArray(res)) allRawTracks.push(...res); });
-            return res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req)) });
+            return res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
         }
         const query = ARTIST_QUERIES[artistId];
         if (!query) return res.status(404).json({ success: false, message: 'Artist not found' });
@@ -81,30 +88,50 @@ const getArtistPlaylist = async (req, res) => {
             if (rawPage.length === 0) break; 
             allRawTracks = allRawTracks.concat(rawPage);
         }
-        res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req)) });
+        res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
     } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
 };
 
-// UPGRADED: Accepts dynamic language variables for trending charts
+// UPGRADED: Maps specific charts to prevent 'All' and 'English' from colliding
 const fetchTrending = async (req, res) => {
     try {
-        const lang = req.query.lang && req.query.lang !== 'All' ? req.query.lang.toLowerCase() : 'english';
-        const raw = await fetchFromSaavn(`${lang}+latest+hits&limit=24`);
-        res.json({ success: true, data: deduplicateTracks(processResults(raw, req)) });
+        const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
+        
+        const trendingQueries = {
+            'all': 'top+charts+india',
+            'english': 'english+global+top+50',
+            'tamil': 'tamil+top+50',
+            'hindi': 'hindi+top+50',
+            'telugu': 'telugu+top+50',
+            'malayalam': 'malayalam+top+50',
+            'japanese': 'jpop+anime+hits'
+        };
+
+        const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
+        const raw = await fetchFromSaavn(`${queryParam}&limit=40`);
+        
+        res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
 const searchTracks = async (req, res) => {
-    const { q, type, id } = req.query;
+    const { q, type, id, lang } = req.query;
     if (!q && !id) return res.json({ success: true, data: [] });
+
+    const targetLang = lang ? lang.toLowerCase() : 'all';
+
     try {
         if (type === 'albums') {
             for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
                 try {
                     const resProxy = await axios.get(`${proxy}?query=${encodeURIComponent(q)}`);
                     let results = resProxy.data?.data?.results || resProxy.data?.results || [];
-                    const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true }));
-                    if(formatted.length > 0) return res.json({ success: true, data: formatted });
+                    const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
+                    
+                    // Strict filter applied to albums too
+                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || !a.language || a.language.toLowerCase() === targetLang);
+                    
+                    if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
                 } catch(e) {}
             }
             return res.json({ success: true, data: [] });
@@ -114,13 +141,15 @@ const searchTracks = async (req, res) => {
                 try {
                     const resProxy = await axios.get(`${proxy}${id}`);
                     let songs = resProxy.data?.data?.songs || resProxy.data?.songs || [];
-                    if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req)) });
+                    if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req, 'all')) });
                 } catch(e) {}
             }
             return res.json({ success: true, data: [] });
         }
-        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=40`);
-        res.json({ success: true, data: deduplicateTracks(processResults(raw, req)) });
+        
+        // We increase the limit because the strict filter will naturally delete a lot of bad results
+        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=60`);
+        res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
