@@ -2,10 +2,11 @@
 import { PlayerContext } from '../context/PlayerContext';
 import { API_BASE_URL } from '../config';
 
+const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, ') : '';
 const Home = () => {
     const [trending, setTrending] = useState([]);
     const [error, setError] = useState(null);
-    const { setCurrentTrack } = useContext(PlayerContext);
+    const { playTrack } = useContext(PlayerContext);
 
     useEffect(() => {
         fetch(`${API_BASE_URL}/api/trending`)
@@ -35,16 +36,16 @@ const Home = () => {
                     <div 
                         key={track.id} 
                         className="bg-gray-800 p-4 rounded-lg cursor-pointer hover:bg-gray-700 transition"
-                        onClick={() => setCurrentTrack(track)}
+                        onClick={() => playTrack(track, trending)}
                     >
                         <div className="relative mb-4">
-                            <img src={track.cover} alt={track.title} className="w-full aspect-square object-cover rounded shadow-lg" />
+                            <img src={track.cover} alt={cleanText(track.title)} className="w-full aspect-square object-cover rounded shadow-lg" />
                             <span className={`absolute top-2 right-2 text-[10px] uppercase font-bold px-2 py-1 rounded shadow-md backdrop-blur-sm ${track.tag === 'Original' ? 'bg-green-500/90 text-black' : 'bg-gray-900/80 text-white'}`}>
                                 {track.tag || 'Original'}
                             </span>
                         </div>
-                        <h3 className="font-semibold truncate">{track.title}</h3>
-                        <p className="text-sm text-gray-400 truncate">{track.artist}</p>
+                        <h3 className="font-semibold truncate">{cleanText(track.title)}</h3>
+                        <p className="text-sm text-gray-400 truncate">{cleanText(track.artist)}</p>
                     </div>
                 ))}
             </div>

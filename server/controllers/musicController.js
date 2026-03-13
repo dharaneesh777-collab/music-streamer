@@ -1,6 +1,7 @@
 ﻿const axios = require('axios');
 
-const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
+// ADDED: 'anime' query to the backend logic
+const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj', 'anime': 'anime openings top hits' };
 
 const getFullLengthAudio = (track) => {
     const downloadUrls = track.downloadUrl || track.download_url || track.media_urls || track.urls;
@@ -45,7 +46,6 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-// DYNAMIC ROUTING: Automatically detects if running locally or on a live server
 const processResults = (results, req) => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
