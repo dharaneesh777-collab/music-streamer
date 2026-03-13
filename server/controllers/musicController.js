@@ -1,6 +1,7 @@
 ﻿const axios = require('axios');
 
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
+const SAAVN_PROXIES = ['https://saavn.sumit.co/api/search/songs', 'https://saavn.dev/api/search/songs', 'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'];
 
 const getFullLengthAudio = (track) => {
     const downloadUrls = track.downloadUrl || track.download_url || track.media_urls || track.urls;
@@ -32,8 +33,6 @@ const deduplicateTracks = (tracks) => {
     return uniqueTracks;
 };
 
-const SAAVN_PROXIES = ['https://saavn.sumit.co/api/search/songs', 'https://saavn.dev/api/search/songs', 'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'];
-
 const fetchFromSaavn = async (query) => {
     for (const proxy of SAAVN_PROXIES) {
         try {
@@ -45,24 +44,57 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-// UPGRADED: The Deep Data Validator & English Purification Rule
+// --- NEW MULTI-API HYBRID ENGINE (APPLE MUSIC + JIOSAAVN) ---
+const hybridFetch = async (itunesTracks, req) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const promises = itunesTracks.map(async (entry) => {
+        // Support both Apple Search API and Apple RSS API formats
+        const title = entry.trackName || entry['im:name']?.label;
+        const artist = entry.artistName || entry['im:artist']?.label;
+        const cover = (entry.artworkUrl100 ? entry.artworkUrl100.replace('100x100bb', '300x300bb') : null) || (entry['im:image'] && entry['im:image'][2]?.label) || 'https://via.placeholder.com/300';
+        
+        // Secretly find the audio file on Saavn using Apple's perfect metadata
+        const saavnQuery = `${title} ${artist}`.replace(/[^a-zA-Z0-9 ]/g, " ");
+
+        for (const proxy of SAAVN_PROXIES) {
+            try {
+                const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=1`, { timeout: 5000 });
+                const saavnData = saavnRes.data?.data?.results || saavnRes.data?.results || [];
+                if (saavnData.length > 0) {
+                    const originalUrl = getFullLengthAudio(saavnData[0]);
+                    if (originalUrl) {
+                        return {
+                            id: saavnData[0].id || Math.random().toString(),
+                            title: title, 
+                            artist: artist, 
+                            cover: cover, 
+                            audioUrl: `${baseUrl}/api/stream?url=${encodeURIComponent(originalUrl)}`,
+                            duration: saavnData[0].duration || 180,
+                            tag: 'Original'
+                        };
+                    }
+                }
+            } catch(e) {}
+        }
+        return null;
+    });
+
+    // Execute all 25 Saavn audio searches simultaneously
+    const results = await Promise.all(promises);
+    return results.filter(track => track !== null);
+};
+
+// Cleaned up Regional Filter for Saavn
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
-        // Force string conversion to prevent array crash loops
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
-        const artistName = String(track.artists?.primary?.[0]?.name || track.primaryArtists || "").toLowerCase();
 
-        if (targetLang !== 'all' && targetLang !== 'japanese') {
-            if (!trackLang || !trackLang.includes(targetLang)) return null;
-
-            // THE PURIFICATION HACK: Destroy Indian artists hiding in English tags
-            if (targetLang === 'english') {
-                const indianSignatures = ['anirudh', 'brodha v', 'dj bravo', 'guri', 'diljit', 'rahman', 'yuvan', 'harris', 'devi sri', 'thaman', 'sid sriram', 'arijit', 'shreya', 'badshah', 'honey singh', 'neha kakkar', 'pritam', 'vishal'];
-                if (indianSignatures.some(sig => artistName.includes(sig))) return null;
-            }
+        // Strict Regional Filter (Apple handles English now, so Saavn only filters Indian languages)
+        if (targetLang !== 'all' && targetLang !== 'english' && targetLang !== 'japanese') {
+            if (!trackLang.includes(targetLang)) return null; 
         }
 
         const originalUrl = getFullLengthAudio(track);
@@ -78,6 +110,7 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
+// ... Anime and Artist Playlist logic remains unchanged
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
@@ -105,18 +138,14 @@ const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
 
-        // UPGRADED: The Global Pop Bypass for pure English charts
+        // NEW: Route English Trending to Apple Music API
         if (lang === 'english') {
-            const globalArtists = ["The Weeknd", "Taylor Swift", "Ed Sheeran", "Dua Lipa", "Drake", "Post Malone", "Ariana Grande", "Eminem", "Imagine Dragons", "Bruno Mars"];
-            const promises = globalArtists.map(q => fetchFromSaavn(`${encodeURIComponent(q)}+top+hits&limit=4`));
-            const resultsArray = await Promise.all(promises);
-            let allRawTracks = [];
-            resultsArray.forEach(res => { if (Array.isArray(res)) allRawTracks.push(...res); });
-
-            const processed = deduplicateTracks(processResults(allRawTracks, req, 'english')).sort(() => 0.5 - Math.random());
-            return res.json({ success: true, data: processed });
+            const itunesRes = await axios.get('https://itunes.apple.com/us/rss/topsongs/limit=25/json');
+            const processed = await hybridFetch(itunesRes.data.feed.entry, req);
+            return res.json({ success: true, data: deduplicateTracks(processed) });
         }
         
+        // Regional Route (Saavn)
         const trendingQueries = {
             'all': 'top+charts+india',
             'tamil': 'tamil+top+50',
@@ -127,8 +156,7 @@ const fetchTrending = async (req, res) => {
         };
 
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-        const raw = await fetchFromSaavn(`${queryParam}&limit=150`);
-        
+        const raw = await fetchFromSaavn(`${queryParam}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
@@ -140,6 +168,13 @@ const searchTracks = async (req, res) => {
     const targetLang = lang ? lang.toLowerCase() : 'all';
 
     try {
+        // NEW: Route English Searches to Apple Music API
+        if (targetLang === 'english' && !type) {
+            const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=25`);
+            const processed = await hybridFetch(itunesRes.data.results, req);
+            return res.json({ success: true, data: deduplicateTracks(processed) });
+        }
+
         if (type === 'albums') {
             for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
                 try {
@@ -164,7 +199,8 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
         
-        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=150`);
+        // Standard Saavn Search for Regional Languages
+        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
