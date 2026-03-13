@@ -28,22 +28,30 @@ const BottomNav = () => {
 };
 
 function App() {
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [isInstallable, setIsInstallable] = useState(false);
 
-    // NEW: Listen for the browser's signal that the app can be installed
     useEffect(() => {
-        const handleBeforeInstallPrompt = (e) => {
-            e.preventDefault(); // Stop the browser's default prompt
-            setDeferredPrompt(e); // Save it so we can trigger it with our custom button
+        // Check if the HTML global trap already caught the signal
+        const checkPrompt = () => {
+            if (window.deferredPrompt) {
+                setIsInstallable(true);
+            }
         };
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        
+        checkPrompt(); 
+        window.addEventListener('pwa-install-ready', checkPrompt);
+        
+        return () => window.removeEventListener('pwa-install-ready', checkPrompt);
     }, []);
 
-    const handleInstallClick = () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
+    const handleInstallClick = async () => {
+        if (window.deferredPrompt) {
+            window.deferredPrompt.prompt();
+            const { outcome } = await window.deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setIsInstallable(false);
+                window.deferredPrompt = null;
+            }
         }
     };
 
@@ -52,8 +60,8 @@ function App() {
             <Router>
                 <div className="flex h-screen bg-gray-950 text-white overflow-hidden relative">
                     
-                    {/* NEW: Smart Install Button (Only shows if installable and not yet installed) */}
-                    {deferredPrompt && (
+                    {/* The Install Button renders securely using the trapped signal */}
+                    {isInstallable && (
                         <button 
                             onClick={handleInstallClick} 
                             className="fixed top-4 left-4 z-[70] bg-green-600 hover:bg-green-500 text-white text-[10px] md:text-xs font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-full shadow-lg flex items-center gap-1.5 transition active:scale-95 border border-green-500/50"

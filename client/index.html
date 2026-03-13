@@ -9,6 +9,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.json" />
     <title>Music Streamer</title>
+    
+    <script>
+      window.deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        window.dispatchEvent(new Event('pwa-install-ready'));
+      });
+    </script>
   </head>
   <body class="bg-gray-950 text-white overflow-hidden">
     <div id="root"></div>
@@ -17,7 +26,7 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(err => console.log("SW config error", err));
+          navigator.serviceWorker.register("/sw.js").catch(err => console.log("SW error", err));
         });
       }
     </script>
