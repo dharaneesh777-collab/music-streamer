@@ -45,18 +45,24 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-// UPGRADED: Deep JSON extraction for watertight language filtering
+// UPGRADED: The Deep Data Validator & English Purification Rule
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
-        // Safely extract language, even if it is hidden deep in 'more_info'
-        const trackLang = (track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
-        
-        // STRICT FILTER: If not 'All' and not 'Japanese' (anime lacks language tags), kill mismatches instantly.
+        // Force string conversion to prevent array crash loops
+        const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
+        const artistName = String(track.artists?.primary?.[0]?.name || track.primaryArtists || "").toLowerCase();
+
         if (targetLang !== 'all' && targetLang !== 'japanese') {
             if (!trackLang || !trackLang.includes(targetLang)) return null;
+
+            // THE PURIFICATION HACK: Destroy Indian artists hiding in English tags
+            if (targetLang === 'english') {
+                const indianSignatures = ['anirudh', 'brodha v', 'dj bravo', 'guri', 'diljit', 'rahman', 'yuvan', 'harris', 'devi sri', 'thaman', 'sid sriram', 'arijit', 'shreya', 'badshah', 'honey singh', 'neha kakkar', 'pritam', 'vishal'];
+                if (indianSignatures.some(sig => artistName.includes(sig))) return null;
+            }
         }
 
         const originalUrl = getFullLengthAudio(track);
@@ -98,11 +104,21 @@ const getArtistPlaylist = async (req, res) => {
 const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
+
+        // UPGRADED: The Global Pop Bypass for pure English charts
+        if (lang === 'english') {
+            const globalArtists = ["The Weeknd", "Taylor Swift", "Ed Sheeran", "Dua Lipa", "Drake", "Post Malone", "Ariana Grande", "Eminem", "Imagine Dragons", "Bruno Mars"];
+            const promises = globalArtists.map(q => fetchFromSaavn(`${encodeURIComponent(q)}+top+hits&limit=4`));
+            const resultsArray = await Promise.all(promises);
+            let allRawTracks = [];
+            resultsArray.forEach(res => { if (Array.isArray(res)) allRawTracks.push(...res); });
+
+            const processed = deduplicateTracks(processResults(allRawTracks, req, 'english')).sort(() => 0.5 - Math.random());
+            return res.json({ success: true, data: processed });
+        }
         
-        // UPGRADED: Safer English query
         const trendingQueries = {
             'all': 'top+charts+india',
-            'english': 'english+top+hits',
             'tamil': 'tamil+top+50',
             'hindi': 'hindi+top+50',
             'telugu': 'telugu+top+50',
@@ -111,7 +127,6 @@ const fetchTrending = async (req, res) => {
         };
 
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-        // UPGRADED: Increased limit to 150 to feed the strict filter
         const raw = await fetchFromSaavn(`${queryParam}&limit=150`);
         
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
@@ -132,7 +147,7 @@ const searchTracks = async (req, res) => {
                     let results = resProxy.data?.data?.results || resProxy.data?.results || [];
                     const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
                     
-                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || a.language.toLowerCase() === targetLang);
+                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
                     if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
                 } catch(e) {}
             }
@@ -149,13 +164,11 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
         
-        // UPGRADED: Increased limit to 150 
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=150`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
-// ... streamTrack and downloadTrack remain exactly the same
 const streamTrack = async (req, res) => {
     try {
         const { url } = req.query;
