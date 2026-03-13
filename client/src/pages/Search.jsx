@@ -76,10 +76,10 @@ const Search = () => {
                     <h2 className="text-lg md:text-xl font-bold mb-4 text-green-400">Official Movies & Albums</h2>
                     <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
                         {albums.map(album => (
-                            <div key={album.id} onClick={() => handleAlbumClick(album)} className="min-w-[130px] md:min-w-[160px] bg-green-900/20 border border-green-800 p-2 md:p-3 rounded-lg cursor-pointer hover:bg-green-800/40 transition flex-shrink-0 active:scale-95 shadow-lg">
+                            <div key={album.id} onClick={() => handleAlbumClick(album)} className="min-w-[95px] md:min-w-[140px] bg-green-900/20 border border-green-800 p-1.5 md:p-3 rounded-lg cursor-pointer hover:bg-green-800/40 transition flex-shrink-0 active:scale-95 shadow-lg">
                                 <img src={album.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-md mb-2 md:mb-3" />
-                                <h3 className="text-xs md:text-sm font-bold truncate">{cleanText(album.title)}</h3>
-                                <p className="text-[9px] md:text-[11px] text-green-500 truncate mt-1 uppercase tracking-wider font-semibold">Official Album</p>
+                                <h3 className="text-[10px] md:text-sm font-bold truncate leading-tight">{cleanText(album.title)}</h3>
+                                <p className="text-[8px] md:text-[11px] text-green-500 truncate mt-0.5 uppercase tracking-wider font-semibold">Official Album</p>
                             </div>
                         ))}
                     </div>

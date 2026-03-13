@@ -77,7 +77,6 @@ const Player = () => {
         }
     };
 
-    // RESTORED: Add to Playlist Logic
     const handleAddToPlaylist = () => {
         if (!currentTrack) return;
         const existingPlaylist = JSON.parse(localStorage.getItem('my_playlist')) || [];
@@ -90,7 +89,6 @@ const Player = () => {
         }
     };
 
-    // RESTORED: Download Logic
     const handleDownload = () => {
         if (!currentTrack) return;
         const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(currentTrack.audioUrl)}&title=${encodeURIComponent(currentTrack.title)}`;
@@ -100,7 +98,8 @@ const Player = () => {
     if (!currentTrack) return null;
 
     return (
-        <div className="fixed bottom-16 md:bottom-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
+        // STACKING FIX: hard-locked to bottom-16 on mobile
+        <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
             <style>
                 {`
                     @keyframes eqAnim { 0% { height: 20%; } 50% { height: 100%; } 100% { height: 40%; } }
@@ -122,22 +121,20 @@ const Player = () => {
                 />
             </div>
 
-            <div className="flex items-center gap-2 md:gap-3 w-[40%] md:w-1/4 overflow-hidden">
+            <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
                 <img src={currentTrack.cover} alt="Cover" className="h-10 w-10 md:h-14 md:w-14 rounded shadow-lg flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                    <h4 className="text-xs md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
-                    <p className="text-[9px] md:text-xs text-gray-400 truncate">{cleanText(currentTrack.artist)}</p>
-                </div>
-                <div className={`hidden md:flex items-end gap-[2px] h-6 ml-2 transition-opacity duration-300 flex-shrink-0 ${isPlaying ? 'opacity-100' : 'opacity-20'}`}>
-                    <div className="w-1.5 bg-green-500 rounded-t-sm eq-bar" style={{ animationDelay: '0.0s' }}></div>
-                    <div className="w-1.5 bg-green-500 rounded-t-sm eq-bar" style={{ animationDelay: '0.2s', animationDuration: '0.8s' }}></div>
-                    <div className="w-1.5 bg-green-500 rounded-t-sm eq-bar" style={{ animationDelay: '0.4s', animationDuration: '1.2s' }}></div>
+                    <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
+                    <div className="flex items-center gap-2">
+                        <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
+                        {/* NEW: Mobile Timer injected here */}
+                        <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded">{currentTime} / {duration}</span>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex flex-col items-center w-[60%] md:w-2/4">
+            <div className="flex flex-col items-center w-[55%] md:w-2/4">
                 <div className="flex gap-2 md:gap-6 items-center justify-end md:justify-center w-full">
-                    {/* RESTORED: Mobile View Add to Playlist */}
                     <button onClick={handleAddToPlaylist} className="md:hidden text-gray-400 hover:text-green-500 transition text-lg flex-shrink-0 mr-1">➕</button>
                     
                     <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
@@ -146,7 +143,6 @@ const Player = () => {
                     </button>
                     <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
                     
-                    {/* RESTORED: Mobile View Download */}
                     <button onClick={handleDownload} className="md:hidden text-gray-400 hover:text-white transition text-lg flex-shrink-0 ml-1">⬇️</button>
                     <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
                 </div>
@@ -170,7 +166,6 @@ const Player = () => {
                     </button>
                     <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #22c55e ${volume * 100}%, #374151 ${volume * 100}%)` }} />
                 </div>
-                {/* RESTORED: Desktop View Add & Download */}
                 <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-xl" title="Add to Playlist">➕</button>
                 <button onClick={handleDownload} className="text-gray-400 hover:text-white transition text-xl" title="Download Offline">⬇️</button>
                 <div className="w-px h-8 bg-gray-700/50 mx-1"></div>
