@@ -1,6 +1,6 @@
 ﻿const axios = require('axios');
 
-const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj', 'anime': 'anime openings top hits' };
+const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
 
 const getFullLengthAudio = (track) => {
     const downloadUrls = track.downloadUrl || track.download_url || track.media_urls || track.urls;
@@ -65,6 +65,31 @@ const processResults = (results, req) => {
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
+
+        // NEW: Curated Global Anime Hits Engine
+        if (artistId === 'anime') {
+            const topAnimeQueries = [
+                "Idol YOASOBI", "Gurenge LiSA", "Unravel TK", "Silhouette KANA-BOON",
+                "Kick Back Kenshi Yonezu", "Kaikai Kitan Eve", "Blue Bird Ikimonogakari",
+                "Cruel Angel's Thesis", "Suzume RADWIMPS", "Bling-Bang-Bang-Born",
+                "Specialz King Gnu", "Shinzou wo Sasageyo", "Crossing Field LiSA",
+                "Black Catcher", "Cry Baby HIGEDANdism", "Inferno Mrs GREEN APPLE",
+                "Kamado Tanjirou no Uta", "Polaris Blue Encount", "Kyouran Hey Kids",
+                "Renai Circulation"
+            ];
+
+            // Fire all 20 searches simultaneously for maximum speed
+            const promises = topAnimeQueries.map(q => fetchFromSaavn(`${encodeURIComponent(q)}&limit=3`));
+            const resultsArray = await Promise.all(promises);
+
+            let allRawTracks = [];
+            resultsArray.forEach(res => {
+                if (Array.isArray(res)) allRawTracks.push(...res);
+            });
+
+            return res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req)) });
+        }
+
         const query = ARTIST_QUERIES[artistId];
         if (!query) return res.status(404).json({ success: false, message: 'Artist not found' });
         let allRawTracks = [];
@@ -84,13 +109,11 @@ const fetchTrending = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
-// UPGRADED: Unified Search handling standard songs, searching albums, and fetching album songs
 const searchTracks = async (req, res) => {
     const { q, type, id } = req.query;
     if (!q && !id) return res.json({ success: true, data: [] });
 
     try {
-        // Mode 1: Search for Official Albums/Movies
         if (type === 'albums') {
             for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
                 try {
@@ -105,7 +128,6 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
 
-        // Mode 2: Fetch specific Official Songs from an Album
         if (type === 'albumDetails') {
             for (const proxy of ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id=']) {
                 try {
@@ -117,7 +139,6 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
 
-        // Mode 3: Standard track search
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=40`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
