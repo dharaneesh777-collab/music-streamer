@@ -2,6 +2,8 @@
 
 export const PlayerContext = createContext();
 
+const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : '';
+
 export const PlayerProvider = ({ children }) => {
     const [currentTrack, setCurrentTrack] = useState(null);
     const [trackQueue, setTrackQueue] = useState([]); 
@@ -14,7 +16,6 @@ export const PlayerProvider = ({ children }) => {
         if (queue.length > 0) setTrackQueue(queue);
     };
 
-    // NEW: Manual Next Button Logic
     const playNext = () => {
         if (trackQueue.length === 0 || !currentTrack) return;
         const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
@@ -23,7 +24,6 @@ export const PlayerProvider = ({ children }) => {
         }
     };
 
-    // NEW: Manual Previous Button Logic
     const playPrevious = () => {
         if (trackQueue.length === 0 || !currentTrack) return;
         const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
@@ -32,10 +32,16 @@ export const PlayerProvider = ({ children }) => {
         }
     };
 
+    const togglePlay = () => {
+        const audio = audioRef.current;
+        if (audio.paused) audio.play().catch(err => console.error("Playback blocked:", err));
+        else audio.pause();
+    };
+
     useEffect(() => {
         const audio = audioRef.current;
         const updatePlayState = () => setIsPlaying(!audio.paused);
-        const handleEnded = () => playNext(); // Auto-play relies on the exact same logic
+        const handleEnded = () => playNext(); 
         
         audio.addEventListener('play', updatePlayState);
         audio.addEventListener('pause', updatePlayState);
@@ -46,7 +52,7 @@ export const PlayerProvider = ({ children }) => {
             audio.removeEventListener('pause', updatePlayState);
             audio.removeEventListener('ended', handleEnded);
         };
-    }, [trackQueue, currentTrack]); // Added dependencies to ensure it tracks correctly
+    }, [trackQueue, currentTrack]); 
 
     useEffect(() => { audioRef.current.volume = volume; }, [volume]);
 
@@ -56,14 +62,27 @@ export const PlayerProvider = ({ children }) => {
             audio.src = currentTrack.audioUrl;
             audio.volume = volume;
             audio.play().catch(err => console.error("Playback blocked:", err));
+
+            // NEW: Hardware integration for background audio and lock screen controls
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: cleanText(currentTrack.title),
+                    artist: cleanText(currentTrack.artist),
+                    artwork: [
+                        { src: currentTrack.cover, sizes: '96x96', type: 'image/jpeg' },
+                        { src: currentTrack.cover, sizes: '128x128', type: 'image/jpeg' },
+                        { src: currentTrack.cover, sizes: '512x512', type: 'image/jpeg' }
+                    ]
+                });
+
+                // Link native hardware buttons to React functions
+                navigator.mediaSession.setActionHandler('play', () => audio.play());
+                navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+                navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
+                navigator.mediaSession.setActionHandler('nexttrack', playNext);
+            }
         }
     }, [currentTrack]);
-
-    const togglePlay = () => {
-        const audio = audioRef.current;
-        if (audio.paused) audio.play().catch(err => console.error("Playback blocked:", err));
-        else audio.pause();
-    };
 
     const closePlayer = () => {
         const audio = audioRef.current;

@@ -1,4 +1,5 @@
 ﻿import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
 import Home from './pages/Home';
@@ -27,15 +28,44 @@ const BottomNav = () => {
 };
 
 function App() {
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+    // NEW: Listen for the browser's signal that the app can be installed
+    useEffect(() => {
+        const handleBeforeInstallPrompt = (e) => {
+            e.preventDefault(); // Stop the browser's default prompt
+            setDeferredPrompt(e); // Save it so we can trigger it with our custom button
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }, []);
+
+    const handleInstallClick = () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(() => setDeferredPrompt(null));
+        }
+    };
+
     return (
         <PlayerProvider>
             <Router>
                 <div className="flex h-screen bg-gray-950 text-white overflow-hidden relative">
+                    
+                    {/* NEW: Smart Install Button (Only shows if installable and not yet installed) */}
+                    {deferredPrompt && (
+                        <button 
+                            onClick={handleInstallClick} 
+                            className="fixed top-4 left-4 z-[70] bg-green-600 hover:bg-green-500 text-white text-[10px] md:text-xs font-bold py-1.5 px-3 md:py-2 md:px-4 rounded-full shadow-lg flex items-center gap-1.5 transition active:scale-95 border border-green-500/50"
+                        >
+                            <span className="text-sm">📱</span> Install App
+                        </button>
+                    )}
+
                     <div className="hidden md:flex">
                         <Sidebar />
                     </div>
                     
-                    {/* Increased bottom padding so content doesn't hide behind the two stacked bars */}
                     <div className="flex-1 overflow-y-auto pb-[130px] md:pb-28">
                         <Routes>
                             <Route path="/" element={<Home />} />
