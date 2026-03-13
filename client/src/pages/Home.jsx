@@ -8,25 +8,36 @@ const LANGUAGES = ['All', 'English', 'Tamil', 'Hindi', 'Telugu', 'Malayalam'];
 const Home = () => {
     const [trending, setTrending] = useState([]);
     const [activeLang, setActiveLang] = useState(localStorage.getItem('preferred_lang') || 'All');
+    const [loading, setLoading] = useState(true); // NEW: Dedicated loading state
     const [error, setError] = useState(null);
     const { playTrack } = useContext(PlayerContext);
 
     useEffect(() => {
         localStorage.setItem('preferred_lang', activeLang);
         setTrending([]);
+        setLoading(true); // Start loading animation immediately
+        setError(null);
+
         fetch(`${API_BASE_URL}/api/trending?lang=${activeLang}`)
             .then(res => res.json())
             .then(data => {
-                if (data && data.success) setTrending(data.data);
-                else setError("Failed to load tracks.");
-            }).catch(err => setError("Network error."));
+                if (data && data.success) {
+                    setTrending(data.data);
+                } else {
+                    setError("Failed to load tracks.");
+                }
+                setLoading(false); // Stop loading animation
+            })
+            .catch(err => {
+                setError("Network error connecting to backend.");
+                setLoading(false);
+            });
     }, [activeLang]);
 
     return (
         <div className="p-4 md:p-8">
             <h1 className="text-2xl md:text-3xl font-bold mb-4">Trending Now</h1>
             
-            {/* Language Selection Carousel */}
             <div className="flex gap-2 md:gap-3 overflow-x-auto pb-4 mb-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {LANGUAGES.map(lang => (
                     <button key={lang} onClick={() => setActiveLang(lang)} className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-semibold transition flex-shrink-0 border ${activeLang === lang ? 'bg-green-600 text-white border-green-500' : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700'}`}>
@@ -36,9 +47,12 @@ const Home = () => {
             </div>
 
             {error && <div className="text-red-400 mb-6 bg-red-900/20 p-4 rounded text-sm">{error}</div>}
-            {trending.length === 0 && !error && <p className="text-gray-400 text-sm animate-pulse">Loading charts...</p>}
             
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
+            {/* UPGRADED: Smart UI messaging */}
+            {loading && !error && <p className="text-gray-400 text-sm animate-pulse">Loading charts...</p>}
+            {!loading && trending.length === 0 && !error && <p className="text-gray-400 text-sm">No specific hits found for this language at the moment.</p>}
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6 pb-20">
                 {trending.map(track => (
                     <div key={track.id} className="bg-gray-800 p-3 rounded-lg cursor-pointer hover:bg-gray-700 transition active:scale-[0.98]" onClick={() => playTrack(track, trending)}>
                         <div className="relative mb-3">

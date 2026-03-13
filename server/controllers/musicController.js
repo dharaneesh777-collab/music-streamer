@@ -45,15 +45,18 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-// UPGRADED: Strict Language Filter applied at the data processing level
+// UPGRADED: Deep JSON extraction for watertight language filtering
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
-        // STRICT FILTER: Drop tracks that belong to a different language
-        if (targetLang !== 'all' && track.language) {
-            if (track.language.toLowerCase() !== targetLang) return null;
+        // Safely extract language, even if it is hidden deep in 'more_info'
+        const trackLang = (track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
+        
+        // STRICT FILTER: If not 'All' and not 'Japanese' (anime lacks language tags), kill mismatches instantly.
+        if (targetLang !== 'all' && targetLang !== 'japanese') {
+            if (!trackLang || !trackLang.includes(targetLang)) return null;
         }
 
         const originalUrl = getFullLengthAudio(track);
@@ -92,14 +95,14 @@ const getArtistPlaylist = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
 };
 
-// UPGRADED: Maps specific charts to prevent 'All' and 'English' from colliding
 const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
         
+        // UPGRADED: Safer English query
         const trendingQueries = {
             'all': 'top+charts+india',
-            'english': 'english+global+top+50',
+            'english': 'english+top+hits',
             'tamil': 'tamil+top+50',
             'hindi': 'hindi+top+50',
             'telugu': 'telugu+top+50',
@@ -108,7 +111,8 @@ const fetchTrending = async (req, res) => {
         };
 
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-        const raw = await fetchFromSaavn(`${queryParam}&limit=40`);
+        // UPGRADED: Increased limit to 150 to feed the strict filter
+        const raw = await fetchFromSaavn(`${queryParam}&limit=150`);
         
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
@@ -128,9 +132,7 @@ const searchTracks = async (req, res) => {
                     let results = resProxy.data?.data?.results || resProxy.data?.results || [];
                     const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
                     
-                    // Strict filter applied to albums too
-                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || !a.language || a.language.toLowerCase() === targetLang);
-                    
+                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || a.language.toLowerCase() === targetLang);
                     if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
                 } catch(e) {}
             }
@@ -147,12 +149,13 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: [] });
         }
         
-        // We increase the limit because the strict filter will naturally delete a lot of bad results
-        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=60`);
+        // UPGRADED: Increased limit to 150 
+        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=150`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
+// ... streamTrack and downloadTrack remain exactly the same
 const streamTrack = async (req, res) => {
     try {
         const { url } = req.query;
