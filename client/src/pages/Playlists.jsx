@@ -5,25 +5,51 @@ import { API_BASE_URL } from '../config';
 const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : '';
 
 const Playlists = () => {
-    const [selectedCategory, setSelectedCategory] = useState('My Playlist');
+    const [selectedCategory, setSelectedCategory] = useState('Recommended');
     const [tracks, setTracks] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false); 
-    const { playTrack } = useContext(PlayerContext); // UPGRADED
+    const { playTrack } = useContext(PlayerContext);
 
-    // ADDED: Anime Hits mapping
     const artistMap = { 'AR Rahman Hits': 'ar_rahman', 'Anirudh Hits': 'anirudh', 'Ilaiyaraaja Hits': 'ilaiyaraaja', 'Yuvan Hits': 'yuvan', 'Harris Jayaraj Hits': 'harris_jayaraj', 'Anime Hits': 'anime' };
 
     useEffect(() => {
         if (selectedCategory === 'My Playlist') {
             setTracks(JSON.parse(localStorage.getItem('my_playlist')) || []);
-        } else {
-            setLoading(true);
-            fetch(`${API_BASE_URL}/api/artist-playlist/${artistMap[selectedCategory]}`)
-                .then(res => res.json())
-                .then(data => { if (data.success) setTracks(data.data); setLoading(false); })
-                .catch(() => setLoading(false));
+            return;
         }
+        
+        setLoading(true);
+        if (selectedCategory === 'Recommended') {
+            const history = JSON.parse(localStorage.getItem('listening_history')) || [];
+            if (history.length === 0) { setTracks([]); setLoading(false); return; }
+            
+            // Generate Algorithm: Fetch hits from top 2 recently played artists
+            const recentArtists = [...new Set(history.map(t => cleanText(t.artist).split(',')[0]))].slice(0, 2);
+            let recs = [];
+            
+            const fetchRecs = async () => {
+                for(let artist of recentArtists) {
+                    try {
+                        const res = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(artist + " hits")}&limit=15`);
+                        const data = await res.json();
+                        if(data.success) recs = [...recs, ...data.data];
+                    } catch(e) {}
+                }
+                // Shuffle recommendations and deduplicate
+                const uniqueRecs = Array.from(new Map(recs.map(item => [item.id, item])).values());
+                setTracks(uniqueRecs.sort(() => 0.5 - Math.random()).slice(0, 24));
+                setLoading(false);
+            };
+            fetchRecs();
+            return;
+        }
+
+        // Standard curated playlists
+        fetch(`${API_BASE_URL}/api/artist-playlist/${artistMap[selectedCategory]}`)
+            .then(res => res.json())
+            .then(data => { if (data.success) setTracks(data.data); setLoading(false); })
+            .catch(() => setLoading(false));
+
     }, [selectedCategory]);
 
     const handleRemove = (e, trackId) => {
@@ -35,38 +61,29 @@ const Playlists = () => {
         }
     };
 
-    const downloadAllAudio = () => { /* Same as before */ };
-
     return (
         <div className="p-4 md:p-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h1 className="text-2xl md:text-3xl font-bold">{selectedCategory}</h1>
-            </div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-4">{selectedCategory === 'Recommended' ? 'Made For You' : selectedCategory}</h1>
 
-            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-4 scrollbar-hide mb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {['My Playlist', ...Object.keys(artistMap)].map(cat => (
-                    <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full whitespace-nowrap text-xs md:text-sm font-semibold transition shadow-md ${selectedCategory === cat ? 'bg-white text-black' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>{cat}</button>
+            <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {['Recommended', 'My Playlist', ...Object.keys(artistMap)].map(cat => (
+                    <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-semibold transition shadow-md flex-shrink-0 border ${selectedCategory === cat ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`}>{cat === 'Recommended' ? '✨ Recommended' : cat}</button>
                 ))}
             </div>
 
-            {loading ? <p className="text-sm text-gray-400 animate-pulse">Fetching curated full-length hits...</p> : (
-                tracks.length === 0 ? <p className="text-sm text-gray-400">This playlist is currently empty.</p> : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+            {loading ? <p className="text-sm text-gray-400 animate-pulse">Analyzing listening habits & fetching tracks...</p> : (
+                tracks.length === 0 ? <p className="text-sm text-gray-400">{selectedCategory === 'Recommended' ? 'Play some songs first to get personalized recommendations!' : 'This playlist is empty.'}</p> : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6 pb-20">
                         {tracks.map((track, index) => (
-                            // UPGRADED: Now passes the ENTIRE 'tracks' array into context so the engine knows what to play next
-                            <div key={track.id + index} className="flex items-center justify-between bg-gray-800/80 p-2 md:p-3 rounded-lg hover:bg-gray-700 cursor-pointer transition group active:scale-[0.98]" onClick={() => playTrack(track, tracks)}>
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <img src={track.cover} alt="cover" className="h-10 w-10 md:h-12 md:w-12 rounded object-cover flex-shrink-0 shadow-md" />
-                                    <div className="flex flex-col min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-sm md:text-base font-semibold truncate">{cleanText(track.title)}</h3>
-                                        </div>
-                                        <p className="text-xs text-gray-400 truncate">{cleanText(track.artist)}</p>
-                                    </div>
+                            <div key={track.id + index} className="bg-gray-800 p-3 rounded-lg hover:bg-gray-700 cursor-pointer transition active:scale-[0.98]" onClick={() => playTrack(track, tracks)}>
+                                <div className="relative mb-3">
+                                    <img src={track.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-md" />
+                                    {selectedCategory === 'My Playlist' && (
+                                        <button onClick={(e) => handleRemove(e, track.id)} className="absolute top-1 right-1 bg-red-600/80 text-white rounded-full w-6 h-6 flex items-center justify-center shadow">✖</button>
+                                    )}
                                 </div>
-                                {selectedCategory === 'My Playlist' && (
-                                    <button onClick={(e) => handleRemove(e, track.id)} className="text-gray-500 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition px-3">✖</button>
-                                )}
+                                <h3 className="text-[11px] md:text-sm font-semibold truncate">{cleanText(track.title)}</h3>
+                                <p className="text-[9px] md:text-xs text-gray-400 truncate">{cleanText(track.artist)}</p>
                             </div>
                         ))}
                     </div>
@@ -75,5 +92,4 @@ const Playlists = () => {
         </div>
     );
 };
-
 export default Playlists;

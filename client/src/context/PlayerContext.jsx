@@ -14,22 +14,23 @@ export const PlayerProvider = ({ children }) => {
     const playTrack = (track, queue = []) => {
         setCurrentTrack(track);
         if (queue.length > 0) setTrackQueue(queue);
+        
+        // UPGRADED: Recommendation Algorithm Data Logger
+        const history = JSON.parse(localStorage.getItem('listening_history')) || [];
+        const newHistory = [track, ...history.filter(t => t.id !== track.id)].slice(0, 30); // Store last 30 unique songs
+        localStorage.setItem('listening_history', JSON.stringify(newHistory));
     };
 
     const playNext = () => {
         if (trackQueue.length === 0 || !currentTrack) return;
         const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
-        if (currentIndex !== -1 && currentIndex + 1 < trackQueue.length) {
-            setCurrentTrack(trackQueue[currentIndex + 1]);
-        }
+        if (currentIndex !== -1 && currentIndex + 1 < trackQueue.length) setCurrentTrack(trackQueue[currentIndex + 1]);
     };
 
     const playPrevious = () => {
         if (trackQueue.length === 0 || !currentTrack) return;
         const currentIndex = trackQueue.findIndex(t => t.id === currentTrack.id);
-        if (currentIndex > 0) {
-            setCurrentTrack(trackQueue[currentIndex - 1]);
-        }
+        if (currentIndex > 0) setCurrentTrack(trackQueue[currentIndex - 1]);
     };
 
     const togglePlay = () => {
@@ -42,11 +43,9 @@ export const PlayerProvider = ({ children }) => {
         const audio = audioRef.current;
         const updatePlayState = () => setIsPlaying(!audio.paused);
         const handleEnded = () => playNext(); 
-        
         audio.addEventListener('play', updatePlayState);
         audio.addEventListener('pause', updatePlayState);
         audio.addEventListener('ended', handleEnded);
-
         return () => {
             audio.removeEventListener('play', updatePlayState);
             audio.removeEventListener('pause', updatePlayState);
@@ -63,19 +62,15 @@ export const PlayerProvider = ({ children }) => {
             audio.volume = volume;
             audio.play().catch(err => console.error("Playback blocked:", err));
 
-            // NEW: Hardware integration for background audio and lock screen controls
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: cleanText(currentTrack.title),
                     artist: cleanText(currentTrack.artist),
                     artwork: [
                         { src: currentTrack.cover, sizes: '96x96', type: 'image/jpeg' },
-                        { src: currentTrack.cover, sizes: '128x128', type: 'image/jpeg' },
                         { src: currentTrack.cover, sizes: '512x512', type: 'image/jpeg' }
                     ]
                 });
-
-                // Link native hardware buttons to React functions
                 navigator.mediaSession.setActionHandler('play', () => audio.play());
                 navigator.mediaSession.setActionHandler('pause', () => audio.pause());
                 navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
