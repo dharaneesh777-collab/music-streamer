@@ -1,12 +1,25 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3063/3063822.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Music Streamer</title>
   </head>
-  <body class="bg-gray-900 text-white">
+  <body class="bg-gray-950 text-white overflow-hidden">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(err => console.log("SW config error", err));
+        });
+      }
+    </script>
   </body>
 </html>
