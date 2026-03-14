@@ -44,33 +44,56 @@ const fetchFromSaavn = async (query) => {
     return [];
 };
 
-// --- NEW MULTI-API HYBRID ENGINE (APPLE MUSIC + JIOSAAVN) ---
+// UPGRADED HYBRID ENGINE: Mathematical Duration Matching & Junk Filtering
 const hybridFetch = async (itunesTracks, req) => {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const promises = itunesTracks.map(async (entry) => {
-        // Support both Apple Search API and Apple RSS API formats
         const title = entry.trackName || entry['im:name']?.label;
         const artist = entry.artistName || entry['im:artist']?.label;
         const cover = (entry.artworkUrl100 ? entry.artworkUrl100.replace('100x100bb', '300x300bb') : null) || (entry['im:image'] && entry['im:image'][2]?.label) || 'https://via.placeholder.com/300';
         
-        // Secretly find the audio file on Saavn using Apple's perfect metadata
+        // Extract official Apple duration (in seconds) if available
+        const targetDuration = entry.trackTimeMillis ? entry.trackTimeMillis / 1000 : null;
         const saavnQuery = `${title} ${artist}`.replace(/[^a-zA-Z0-9 ]/g, " ");
 
         for (const proxy of SAAVN_PROXIES) {
             try {
-                const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=1`, { timeout: 5000 });
+                // Fetch top 6 to find the perfect studio match
+                const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=6`, { timeout: 5000 });
                 const saavnData = saavnRes.data?.data?.results || saavnRes.data?.results || [];
+                
                 if (saavnData.length > 0) {
-                    const originalUrl = getFullLengthAudio(saavnData[0]);
+                    let bestMatch = null;
+                    let minDiff = Infinity;
+
+                    for (const t of saavnData) {
+                        const tTitle = (t.name || t.title || "").toLowerCase();
+                        const isCover = title.toLowerCase().includes('cover');
+                        const isLive = title.toLowerCase().includes('live');
+
+                        // STRICT FILTER: Eradicate mismatched versions
+                        if (!isCover && (tTitle.includes('cover') || tTitle.includes('tribute'))) continue;
+                        if (!isLive && tTitle.includes('live')) continue;
+                        if (tTitle.includes('instrumental') || tTitle.includes('karaoke') || tTitle.includes('commentary') || tTitle.includes('dialogue')) continue;
+
+                        // Match Duration Math
+                        if (targetDuration && t.duration) {
+                            const diff = Math.abs(t.duration - targetDuration);
+                            if (diff < minDiff) { minDiff = diff; bestMatch = t; }
+                        } else if (!bestMatch) {
+                            bestMatch = t; // Fallback
+                        }
+                    }
+
+                    if (!bestMatch) bestMatch = saavnData[0]; // Absolute fallback
+
+                    const originalUrl = getFullLengthAudio(bestMatch);
                     if (originalUrl) {
                         return {
-                            id: saavnData[0].id || Math.random().toString(),
-                            title: title, 
-                            artist: artist, 
-                            cover: cover, 
+                            id: bestMatch.id || Math.random().toString(),
+                            title: title, artist: artist, cover: cover, 
                             audioUrl: `${baseUrl}/api/stream?url=${encodeURIComponent(originalUrl)}`,
-                            duration: saavnData[0].duration || 180,
-                            tag: 'Original'
+                            duration: bestMatch.duration || 180, tag: 'Original'
                         };
                     }
                 }
@@ -79,38 +102,29 @@ const hybridFetch = async (itunesTracks, req) => {
         return null;
     });
 
-    // Execute all 25 Saavn audio searches simultaneously
     const results = await Promise.all(promises);
     return results.filter(track => track !== null);
 };
 
-// Cleaned up Regional Filter for Saavn
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
-
-        // Strict Regional Filter (Apple handles English now, so Saavn only filters Indian languages)
         if (targetLang !== 'all' && targetLang !== 'english' && targetLang !== 'japanese') {
             if (!trackLang.includes(targetLang)) return null; 
         }
-
         const originalUrl = getFullLengthAudio(track);
         return {
             id: track.id || Math.random().toString(),
-            title: track.name || track.title,
-            artist: track.artists?.primary?.[0]?.name || track.primaryArtists || 'Unknown Artist',
-            cover: getHighQualityImage(track),
-            audioUrl: originalUrl ? `${baseUrl}/api/stream?url=${encodeURIComponent(originalUrl)}` : null, 
-            duration: track.duration || 180,
-            tag: (track.name || track.title || "").toLowerCase().includes('remix') ? 'Remix' : 'Original'
+            title: track.name || track.title, artist: track.artists?.primary?.[0]?.name || track.primaryArtists || 'Unknown Artist',
+            cover: getHighQualityImage(track), audioUrl: originalUrl ? `${baseUrl}/api/stream?url=${encodeURIComponent(originalUrl)}` : null, 
+            duration: track.duration || 180, tag: (track.name || track.title || "").toLowerCase().includes('remix') ? 'Remix' : 'Original'
         };
     }).filter(track => track !== null && track.audioUrl);
 };
 
-// ... Anime and Artist Playlist logic remains unchanged
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
@@ -137,24 +151,12 @@ const getArtistPlaylist = async (req, res) => {
 const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
-
-        // NEW: Route English Trending to Apple Music API
         if (lang === 'english') {
             const itunesRes = await axios.get('https://itunes.apple.com/us/rss/topsongs/limit=25/json');
             const processed = await hybridFetch(itunesRes.data.feed.entry, req);
             return res.json({ success: true, data: deduplicateTracks(processed) });
         }
-        
-        // Regional Route (Saavn)
-        const trendingQueries = {
-            'all': 'top+charts+india',
-            'tamil': 'tamil+top+50',
-            'hindi': 'hindi+top+50',
-            'telugu': 'telugu+top+50',
-            'malayalam': 'malayalam+top+50',
-            'japanese': 'jpop+anime+hits'
-        };
-
+        const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'tamil+top+50', 'hindi': 'hindi+top+50', 'telugu': 'telugu+top+50', 'malayalam': 'malayalam+top+50', 'japanese': 'jpop+anime+hits' };
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
         const raw = await fetchFromSaavn(`${queryParam}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
@@ -164,24 +166,19 @@ const fetchTrending = async (req, res) => {
 const searchTracks = async (req, res) => {
     const { q, type, id, lang } = req.query;
     if (!q && !id) return res.json({ success: true, data: [] });
-
     const targetLang = lang ? lang.toLowerCase() : 'all';
-
     try {
-        // NEW: Route English Searches to Apple Music API
         if (targetLang === 'english' && !type) {
             const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=25`);
             const processed = await hybridFetch(itunesRes.data.results, req);
             return res.json({ success: true, data: deduplicateTracks(processed) });
         }
-
         if (type === 'albums') {
             for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
                 try {
                     const resProxy = await axios.get(`${proxy}?query=${encodeURIComponent(q)}`);
                     let results = resProxy.data?.data?.results || resProxy.data?.results || [];
                     const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
-                    
                     const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
                     if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
                 } catch(e) {}
@@ -198,8 +195,6 @@ const searchTracks = async (req, res) => {
             }
             return res.json({ success: true, data: [] });
         }
-        
-        // Standard Saavn Search for Regional Languages
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
