@@ -274,21 +274,11 @@ const Player = () => {
                     {`
                         @keyframes eqAnim { 0% { height: 20%; } 50% { height: 100%; } 100% { height: 40%; } }
                         .eq-bar { animation: eqAnim 1s ease-in-out infinite alternate; transform-origin: bottom; }
-                        
-                        /* Refined Thumb CSS prevents bleeding and scales beautifully */
-                        input[type=range]::-webkit-slider-thumb { 
-                            appearance: none; 
-                            width: 12px; height: 12px; 
-                            background: #22c55e; 
-                            border-radius: 50%; 
-                            cursor: pointer; 
-                            border: 2px solid white; 
-                            box-shadow: 0 0 4px rgba(0,0,0,0.5); 
-                        }
+                        input[type=range]::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; background: #22c55e; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
                     `}
                 </style>
 
-                {/* UPGRADED: Absolute bottom-full forces the bar strictly ABOVE the player container */}
+                {/* Mobile Progress Bar (Anchored above container) */}
                 <div className="md:hidden absolute bottom-full left-0 w-full h-1.5 z-50 bg-gray-800 border-b border-gray-900">
                     <input 
                         type="range" min="0" max="100" step="0.1" value={progress}
@@ -300,7 +290,7 @@ const Player = () => {
                     />
                 </div>
 
-                {/* LEFT COLUMN: Strict 45% Boundary */}
+                {/* LEFT COLUMN: Song Info */}
                 <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
                     <img 
                         src={currentTrack.cover} 
@@ -316,8 +306,10 @@ const Player = () => {
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN: Strict 55% Boundary. Double-Decker Stack */}
-                <div className="flex flex-col items-end md:items-center justify-center w-[55%] md:w-2/4 gap-1.5 md:gap-0 pr-1 md:pr-0">
+                {/* CENTER COLUMN: Controls (Reduced to 40% on Desktop) */}
+                <div className="flex flex-col items-end md:items-center justify-center w-[55%] md:w-[40%] gap-1.5 md:gap-0 pr-1 md:pr-0">
+                    
+                    {/* Mobile: Row 1 | Desktop: Row 1 */}
                     <div className="flex items-center justify-end md:justify-center w-full gap-2.5 md:gap-6">
                         <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-lg md:text-2xl">⏮</button>
                         <button onClick={togglePlay} className="h-8 w-8 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0 text-xs md:text-base">
@@ -327,6 +319,7 @@ const Player = () => {
                         <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-sm font-bold ml-1 flex-shrink-0">✕</button>
                     </div>
                     
+                    {/* Mobile: Row 2 (Hidden on Desktop) */}
                     <div className="flex md:hidden items-center justify-end w-full gap-3 mt-0.5">
                         <button onClick={toggleLyricsUI} className={`text-[11px] transition flex-shrink-0 ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
                         <button onClick={handleShare} className="text-[11px] text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
@@ -335,20 +328,23 @@ const Player = () => {
                         <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-[8px] font-bold flex-shrink-0 bg-gray-800 px-1 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
                     </div>
 
+                    {/* Desktop: Seek Bar (Hidden on Mobile) */}
                     <div className="hidden md:flex w-full mt-2 items-center gap-3 max-w-xl">
                         <span className="text-xs text-gray-400 w-8 text-right font-mono">{currentTime}</span>
                         <input 
                             type="range" min="0" max="100" step="0.1" value={progress}
                             onMouseDown={() => setIsDragging(true)} onChange={(e) => setProgress(e.target.value)} onMouseUp={handleSeekEnd}
-                            className="seek-bar flex-1 h-1.5 bg-gray-700/50 rounded-full appearance-none cursor-pointer"
+                            className="w-full flex-1 h-1.5 bg-gray-700/50 rounded-full appearance-none cursor-pointer"
                             style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #374151 ${progress}%)` }}
                         />
                         <span className="text-xs text-gray-400 w-8 font-mono">{duration}</span>
                     </div>
                 </div>
 
-                {/* DESKTOP RIGHT SECTION */}
-                <div className="hidden md:flex w-1/4 justify-end items-center gap-4 pr-2">
+                {/* RIGHT COLUMN: Utilities (Expanded to 35% on Desktop to fit all tools perfectly) */}
+                <div className="hidden md:flex md:w-[35%] justify-end items-center gap-3 md:gap-4 pr-2">
+                    
+                    {/* Volume */}
                     <div className="flex items-center gap-2 mr-2">
                         <button onClick={toggleMute} className="text-gray-400 hover:text-white transition text-lg w-6">
                             {isMuted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
@@ -356,11 +352,16 @@ const Player = () => {
                         <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #22c55e ${volume * 100}%, #374151 ${volume * 100}%)` }} />
                     </div>
                     
+                    {/* UPGRADED: Lyrics and Share added back to PC layout */}
+                    <button onClick={toggleLyricsUI} className={`transition text-xl ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
+                    <button onClick={handleShare} className="text-gray-400 hover:text-white transition text-xl" title="Share Song">🔗</button>
+                    
                     <button onClick={handleSleepTimer} className={`transition text-xl ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`} title="Sleep Timer">🌙</button>
                     <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-xs font-bold bg-gray-800 px-2 py-1 rounded border border-gray-700" title="Playback Speed">{playbackRate}x</button>
                     
                     <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-xl" title="Add to Playlist">➕</button>
                     <button onClick={handleDownload} className="text-gray-400 hover:text-white transition text-xl" title="Download Offline">⬇️</button>
+                    
                     <div className="w-px h-8 bg-gray-700/50 mx-1"></div>
                     <button onClick={closePlayer} className="text-gray-500 hover:text-red-500 transition text-2xl font-bold" title="Close Player">✕</button>
                 </div>
