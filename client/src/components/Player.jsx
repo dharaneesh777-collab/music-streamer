@@ -224,7 +224,7 @@ const Player = () => {
 
     return (
         <>
-            {/* LYRICS WIDGET (Remains Unchanged) */}
+            {/* FLOATING LYRICS WIDGET */}
             <div className={`fixed bottom-[140px] md:bottom-[104px] right-3 md:right-6 w-[calc(100%-24px)] md:w-[380px] h-[35vh] md:h-[60vh] z-40 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col items-center justify-start rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-gray-700/50 ${showLyrics ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'}`}>
                 <div className="absolute inset-0 bg-cover bg-center blur-[30px] opacity-60 scale-125 transition-all duration-1000" style={{ backgroundImage: `url(${currentTrack?.cover})` }}></div>
                 <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-md"></div>
@@ -267,31 +267,40 @@ const Player = () => {
                 </div>
             </div>
 
-            {/* --- UPGRADED MOBILE PLAYER BAR (ANTI-CONGESTION MATRIX) --- */}
+            {/* MAIN PLAYER BAR */}
             <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
+                
                 <style>
                     {`
                         @keyframes eqAnim { 0% { height: 20%; } 50% { height: 100%; } 100% { height: 40%; } }
                         .eq-bar { animation: eqAnim 1s ease-in-out infinite alternate; transform-origin: bottom; }
-                        input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-                        .seek-bar::-webkit-slider-thumb { width: 1px; height: 1px; background: transparent; border: none; }
-                        @media (min-width: 768px) { .seek-bar::-webkit-slider-thumb { width: 14px; height: 14px; background: #22c55e; } }
+                        
+                        /* Refined Thumb CSS prevents bleeding and scales beautifully */
+                        input[type=range]::-webkit-slider-thumb { 
+                            appearance: none; 
+                            width: 12px; height: 12px; 
+                            background: #22c55e; 
+                            border-radius: 50%; 
+                            cursor: pointer; 
+                            border: 2px solid white; 
+                            box-shadow: 0 0 4px rgba(0,0,0,0.5); 
+                        }
                     `}
                 </style>
 
-                {/* Mobile Drag-Seek Bar */}
-                <div className="md:hidden absolute top-[-4px] left-0 w-full h-2">
+                {/* UPGRADED: Absolute bottom-full forces the bar strictly ABOVE the player container */}
+                <div className="md:hidden absolute bottom-full left-0 w-full h-1.5 z-50 bg-gray-800 border-b border-gray-900">
                     <input 
                         type="range" min="0" max="100" step="0.1" value={progress}
                         onMouseDown={() => setIsDragging(true)} onTouchStart={() => setIsDragging(true)}
                         onChange={(e) => setProgress(e.target.value)}
                         onMouseUp={handleSeekEnd} onTouchEnd={handleSeekEnd}
-                        className="seek-bar w-full h-full bg-gray-800 appearance-none cursor-pointer m-0"
-                        style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #1f2937 ${progress}%)` }}
+                        className="w-full h-full appearance-none cursor-pointer m-0 block absolute top-0 left-0 bg-transparent"
+                        style={{ background: `linear-gradient(to right, #22c55e ${progress}%, transparent ${progress}%)` }}
                     />
                 </div>
 
-                {/* LEFT COLUMN: Strict 45% Boundary. Timer migrated here. */}
+                {/* LEFT COLUMN: Strict 45% Boundary */}
                 <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
                     <img 
                         src={currentTrack.cover} 
@@ -307,10 +316,8 @@ const Player = () => {
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN: Strict 55% Boundary. Double-Decker Architecture. */}
+                {/* RIGHT COLUMN: Strict 55% Boundary. Double-Decker Stack */}
                 <div className="flex flex-col items-end md:items-center justify-center w-[55%] md:w-2/4 gap-1.5 md:gap-0 pr-1 md:pr-0">
-                    
-                    {/* Row 1: Core Playback Controls */}
                     <div className="flex items-center justify-end md:justify-center w-full gap-2.5 md:gap-6">
                         <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-lg md:text-2xl">⏮</button>
                         <button onClick={togglePlay} className="h-8 w-8 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0 text-xs md:text-base">
@@ -320,7 +327,6 @@ const Player = () => {
                         <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-sm font-bold ml-1 flex-shrink-0">✕</button>
                     </div>
                     
-                    {/* Row 2: Utilities (Mobile Only Stack) */}
                     <div className="flex md:hidden items-center justify-end w-full gap-3 mt-0.5">
                         <button onClick={toggleLyricsUI} className={`text-[11px] transition flex-shrink-0 ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
                         <button onClick={handleShare} className="text-[11px] text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
@@ -329,7 +335,6 @@ const Player = () => {
                         <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-[8px] font-bold flex-shrink-0 bg-gray-800 px-1 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
                     </div>
 
-                    {/* Desktop Range Slider (Hidden on Mobile) */}
                     <div className="hidden md:flex w-full mt-2 items-center gap-3 max-w-xl">
                         <span className="text-xs text-gray-400 w-8 text-right font-mono">{currentTime}</span>
                         <input 
@@ -342,7 +347,7 @@ const Player = () => {
                     </div>
                 </div>
 
-                {/* DESKTOP EXCLUSIVE RIGHT SECTION */}
+                {/* DESKTOP RIGHT SECTION */}
                 <div className="hidden md:flex w-1/4 justify-end items-center gap-4 pr-2">
                     <div className="flex items-center gap-2 mr-2">
                         <button onClick={toggleMute} className="text-gray-400 hover:text-white transition text-lg w-6">
