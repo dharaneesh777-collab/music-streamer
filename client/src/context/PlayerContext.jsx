@@ -9,15 +9,15 @@ export const PlayerProvider = ({ children }) => {
     const [trackQueue, setTrackQueue] = useState([]); 
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(1);
+    const [playbackRate, setPlaybackRate] = useState(1);
     const audioRef = useRef(new Audio());
 
     const playTrack = (track, queue = []) => {
         setCurrentTrack(track);
         if (queue.length > 0) setTrackQueue(queue);
         
-        // UPGRADED: Recommendation Algorithm Data Logger
         const history = JSON.parse(localStorage.getItem('listening_history')) || [];
-        const newHistory = [track, ...history.filter(t => t.id !== track.id)].slice(0, 30); // Store last 30 unique songs
+        const newHistory = [track, ...history.filter(t => t.id !== track.id)].slice(0, 30);
         localStorage.setItem('listening_history', JSON.stringify(newHistory));
     };
 
@@ -54,12 +54,14 @@ export const PlayerProvider = ({ children }) => {
     }, [trackQueue, currentTrack]); 
 
     useEffect(() => { audioRef.current.volume = volume; }, [volume]);
+    useEffect(() => { audioRef.current.playbackRate = playbackRate; }, [playbackRate]);
 
     useEffect(() => {
         const audio = audioRef.current;
         if (currentTrack) {
             audio.src = currentTrack.audioUrl;
             audio.volume = volume;
+            audio.playbackRate = playbackRate;
             audio.play().catch(err => console.error("Playback blocked:", err));
 
             if ('mediaSession' in navigator) {
@@ -89,7 +91,7 @@ export const PlayerProvider = ({ children }) => {
     };
 
     return (
-        <PlayerContext.Provider value={{ currentTrack, playTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef }}>
+        <PlayerContext.Provider value={{ currentTrack, playTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, playbackRate, setPlaybackRate, audioRef }}>
             {children}
         </PlayerContext.Provider>
     );

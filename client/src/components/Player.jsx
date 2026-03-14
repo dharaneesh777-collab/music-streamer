@@ -5,13 +5,14 @@ import { API_BASE_URL } from '../config';
 const cleanText = (str) => str ? str.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : '';
 
 const Player = () => {
-    const { currentTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, audioRef } = useContext(PlayerContext);
+    const { currentTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, playbackRate, setPlaybackRate, audioRef } = useContext(PlayerContext);
     const [progress, setProgress] = useState(0);
     const [currentTime, setCurrentTime] = useState('0:00');
     const [duration, setDuration] = useState('0:00');
     const [isMuted, setIsMuted] = useState(false);
     const [previousVolume, setPreviousVolume] = useState(1);
     const [isDragging, setIsDragging] = useState(false);
+    const [sleepTimer, setSleepTimer] = useState(null); 
 
     const formatTime = (time) => {
         if (isNaN(time) || time === Infinity) return '0:00';
@@ -23,8 +24,7 @@ const Player = () => {
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
-                e.preventDefault();
-                togglePlay();
+                e.preventDefault(); togglePlay();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -84,9 +84,7 @@ const Player = () => {
             existingPlaylist.push(currentTrack);
             localStorage.setItem('my_playlist', JSON.stringify(existingPlaylist));
             alert(`"${cleanText(currentTrack.title)}" added to your playlist!`);
-        } else {
-            alert(`"${cleanText(currentTrack.title)}" is already in your playlist.`);
-        }
+        } else alert(`"${cleanText(currentTrack.title)}" is already in your playlist.`);
     };
 
     const handleDownload = () => {
@@ -95,10 +93,34 @@ const Player = () => {
         window.open(downloadUrl, '_blank');
     };
 
+    const handleSleepTimer = () => {
+        if (sleepTimer) {
+            clearTimeout(sleepTimer);
+            setSleepTimer(null);
+            alert("🌙 Sleep timer canceled.");
+        } else {
+            const mins = prompt("Enter sleep timer in minutes (e.g., 15, 30, 60):", "30");
+            const parsed = parseInt(mins);
+            if (!isNaN(parsed) && parsed > 0) {
+                const timer = setTimeout(() => {
+                    audioRef.current.pause();
+                    setSleepTimer(null);
+                }, parsed * 60000);
+                setSleepTimer(timer);
+                alert(`🌙 Sleep timer set for ${parsed} minutes. Music will pause automatically.`);
+            }
+        }
+    };
+
+    const cyclePlaybackRate = () => {
+        const rates = [1, 1.25, 1.5, 2];
+        const nextIndex = (rates.indexOf(playbackRate) + 1) % rates.length;
+        setPlaybackRate(rates[nextIndex]);
+    };
+
     if (!currentTrack) return null;
 
     return (
-        // STACKING FIX: hard-locked to bottom-16 on mobile
         <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
             <style>
                 {`
@@ -127,7 +149,6 @@ const Player = () => {
                     <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
                     <div className="flex items-center gap-2">
                         <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
-                        {/* NEW: Mobile Timer injected here */}
                         <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded">{currentTime} / {duration}</span>
                     </div>
                 </div>
@@ -135,6 +156,7 @@ const Player = () => {
 
             <div className="flex flex-col items-center w-[55%] md:w-2/4">
                 <div className="flex gap-2 md:gap-6 items-center justify-end md:justify-center w-full">
+                    <button onClick={handleSleepTimer} className={`md:hidden transition text-lg flex-shrink-0 mr-1 ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`}>🌙</button>
                     <button onClick={handleAddToPlaylist} className="md:hidden text-gray-400 hover:text-green-500 transition text-lg flex-shrink-0 mr-1">➕</button>
                     
                     <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
@@ -143,7 +165,7 @@ const Player = () => {
                     </button>
                     <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
                     
-                    <button onClick={handleDownload} className="md:hidden text-gray-400 hover:text-white transition text-lg flex-shrink-0 ml-1">⬇️</button>
+                    <button onClick={cyclePlaybackRate} className="md:hidden text-gray-400 hover:text-white transition text-[10px] font-bold flex-shrink-0 ml-1 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
                     <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
                 </div>
                 
@@ -166,6 +188,10 @@ const Player = () => {
                     </button>
                     <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #22c55e ${volume * 100}%, #374151 ${volume * 100}%)` }} />
                 </div>
+                
+                <button onClick={handleSleepTimer} className={`transition text-xl ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`} title="Sleep Timer">🌙</button>
+                <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-xs font-bold bg-gray-800 px-2 py-1 rounded border border-gray-700" title="Playback Speed">{playbackRate}x</button>
+                
                 <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-xl" title="Add to Playlist">➕</button>
                 <button onClick={handleDownload} className="text-gray-400 hover:text-white transition text-xl" title="Download Offline">⬇️</button>
                 <div className="w-px h-8 bg-gray-700/50 mx-1"></div>
