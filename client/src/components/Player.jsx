@@ -144,7 +144,6 @@ const Player = () => {
         } catch(e) {}
     };
 
-    // NEW FEATURE: Mobile Double-Tap to Seek Forward
     const handleDoubleTap = () => {
         if (audioRef.current && audioRef.current.duration) {
             audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 10);
@@ -225,9 +224,8 @@ const Player = () => {
 
     return (
         <>
-            {/* UPGRADED COMPACT WIDGET: Sits beautifully out of the way on mobile */}
+            {/* LYRICS WIDGET (Remains Unchanged) */}
             <div className={`fixed bottom-[140px] md:bottom-[104px] right-3 md:right-6 w-[calc(100%-24px)] md:w-[380px] h-[35vh] md:h-[60vh] z-40 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col items-center justify-start rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-gray-700/50 ${showLyrics ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'}`}>
-                
                 <div className="absolute inset-0 bg-cover bg-center blur-[30px] opacity-60 scale-125 transition-all duration-1000" style={{ backgroundImage: `url(${currentTrack?.cover})` }}></div>
                 <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-md"></div>
                 
@@ -242,17 +240,13 @@ const Player = () => {
                 
                 <div className="z-40 w-full px-4 md:px-6 h-full overflow-y-auto scrollbar-hide text-center flex flex-col relative pt-12 pb-24" ref={lyricsContainerRef} style={{ scrollBehavior: 'smooth' }}>
                     <div className="min-h-[15vh] flex-shrink-0"></div>
-
                     {lyricsLoading && <p className="text-gray-400 animate-pulse text-xs mt-10">Syncing database...</p>}
-                    
                     {lyricsData.error && (
                         <div className="mt-6 p-3 bg-red-900/20 border border-red-800 rounded-xl mx-auto w-full">
                             <p className="text-red-400 text-[11px] font-bold">{lyricsData.error}</p>
                         </div>
                     )}
-                    
                     {lyricsData.plain && <div className="text-gray-300 mt-6 whitespace-pre-wrap leading-[2.5] text-xs font-medium tracking-wide">{lyricsData.lines[0].text}</div>}
-                    
                     {!lyricsLoading && !lyricsData.error && !lyricsData.plain && lyricsData.lines?.map((line, idx) => (
                         <p 
                             key={idx} 
@@ -269,12 +263,11 @@ const Player = () => {
                             {line.text}
                         </p>
                     ))}
-
                     <div className="min-h-[25vh] flex-shrink-0"></div>
                 </div>
             </div>
 
-            {/* --- MAIN PLAYER BAR --- */}
+            {/* --- UPGRADED MOBILE PLAYER BAR (ANTI-CONGESTION MATRIX) --- */}
             <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
                 <style>
                     {`
@@ -286,6 +279,7 @@ const Player = () => {
                     `}
                 </style>
 
+                {/* Mobile Drag-Seek Bar */}
                 <div className="md:hidden absolute top-[-4px] left-0 w-full h-2">
                     <input 
                         type="range" min="0" max="100" step="0.1" value={progress}
@@ -297,42 +291,45 @@ const Player = () => {
                     />
                 </div>
 
+                {/* LEFT COLUMN: Strict 45% Boundary. Timer migrated here. */}
                 <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
                     <img 
                         src={currentTrack.cover} 
                         alt="Cover" 
                         onDoubleClick={handleDoubleTap}
                         title="Double-tap to skip 10s"
-                        className="h-10 w-10 md:h-14 md:w-14 rounded shadow-lg flex-shrink-0 cursor-pointer active:scale-95 transition-transform" 
+                        className="h-11 w-11 md:h-14 md:w-14 rounded shadow-lg flex-shrink-0 cursor-pointer active:scale-95 transition-transform" 
                     />
                     <div className="flex flex-col min-w-0">
                         <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
-                        <div className="flex items-center gap-2">
-                            <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
-                            
-                            <button onClick={toggleLyricsUI} className={`text-[10px] md:text-xs transition flex-shrink-0 ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
-                            <button onClick={handleShare} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
-                            
-                            <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded ml-auto">{currentTime} / {duration}</span>
-                        </div>
+                        <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[80px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
+                        <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter mt-0.5">{currentTime} / {duration}</span>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center w-[55%] md:w-2/4">
-                    <div className="flex gap-2 md:gap-6 items-center justify-end md:justify-center w-full">
-                        <button onClick={handleSleepTimer} className={`md:hidden transition text-lg flex-shrink-0 mr-1 ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`}>🌙</button>
-                        <button onClick={handleAddToPlaylist} className="md:hidden text-gray-400 hover:text-green-500 transition text-lg flex-shrink-0 mr-1">➕</button>
-                        
-                        <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
-                        <button onClick={togglePlay} className="h-10 w-10 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0">
+                {/* RIGHT COLUMN: Strict 55% Boundary. Double-Decker Architecture. */}
+                <div className="flex flex-col items-end md:items-center justify-center w-[55%] md:w-2/4 gap-1.5 md:gap-0 pr-1 md:pr-0">
+                    
+                    {/* Row 1: Core Playback Controls */}
+                    <div className="flex items-center justify-end md:justify-center w-full gap-2.5 md:gap-6">
+                        <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-lg md:text-2xl">⏮</button>
+                        <button onClick={togglePlay} className="h-8 w-8 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0 text-xs md:text-base">
                             {isPlaying ? '⏸' : '▶'}
                         </button>
-                        <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
-                        
-                        <button onClick={cyclePlaybackRate} className="md:hidden text-gray-400 hover:text-white transition text-[10px] font-bold flex-shrink-0 ml-1 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
-                        <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
+                        <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-lg md:text-2xl">⏭</button>
+                        <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-sm font-bold ml-1 flex-shrink-0">✕</button>
                     </div>
                     
+                    {/* Row 2: Utilities (Mobile Only Stack) */}
+                    <div className="flex md:hidden items-center justify-end w-full gap-3 mt-0.5">
+                        <button onClick={toggleLyricsUI} className={`text-[11px] transition flex-shrink-0 ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
+                        <button onClick={handleShare} className="text-[11px] text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
+                        <button onClick={handleSleepTimer} className={`transition text-[11px] flex-shrink-0 ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`}>🌙</button>
+                        <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-[11px] flex-shrink-0">➕</button>
+                        <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-[8px] font-bold flex-shrink-0 bg-gray-800 px-1 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
+                    </div>
+
+                    {/* Desktop Range Slider (Hidden on Mobile) */}
                     <div className="hidden md:flex w-full mt-2 items-center gap-3 max-w-xl">
                         <span className="text-xs text-gray-400 w-8 text-right font-mono">{currentTime}</span>
                         <input 
@@ -345,6 +342,7 @@ const Player = () => {
                     </div>
                 </div>
 
+                {/* DESKTOP EXCLUSIVE RIGHT SECTION */}
                 <div className="hidden md:flex w-1/4 justify-end items-center gap-4 pr-2">
                     <div className="flex items-center gap-2 mr-2">
                         <button onClick={toggleMute} className="text-gray-400 hover:text-white transition text-lg w-6">
