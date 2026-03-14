@@ -8,11 +8,18 @@ const Player = () => {
     const { currentTrack, playNext, playPrevious, isPlaying, togglePlay, closePlayer, volume, setVolume, playbackRate, setPlaybackRate, audioRef } = useContext(PlayerContext);
     const [progress, setProgress] = useState(0);
     const [currentTime, setCurrentTime] = useState('0:00');
+    const [rawTime, setRawTime] = useState(0); 
     const [duration, setDuration] = useState('0:00');
     const [isMuted, setIsMuted] = useState(false);
     const [previousVolume, setPreviousVolume] = useState(1);
     const [isDragging, setIsDragging] = useState(false);
     const [sleepTimer, setSleepTimer] = useState(null); 
+    
+    // NEW LYRICS ENGINE STATE
+    const [showLyrics, setShowLyrics] = useState(false);
+    const [lyricsData, setLyricsData] = useState({ trackId: null, lines: [], error: null, plain: false });
+    const [lyricsLoading, setLyricsLoading] = useState(false);
+    const lyricsContainerRef = useRef(null);
 
     const formatTime = (time) => {
         if (isNaN(time) || time === Infinity) return '0:00';
@@ -21,7 +28,6 @@ const Player = () => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    // UPGRADED: Added Pro Keyboard Navigation (Arrows)
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (document.activeElement.tagName === 'INPUT') return;
@@ -40,6 +46,7 @@ const Player = () => {
             if (audio.duration && !isDragging) {
                 setProgress((audio.currentTime / audio.duration) * 100);
                 setCurrentTime(formatTime(audio.currentTime));
+                setRawTime(audio.currentTime); // Pass raw numerical seconds to the Lyrics Engine
             }
         };
         const updateDuration = () => setDuration(formatTime(audio.duration));
@@ -59,6 +66,7 @@ const Player = () => {
             audio.currentTime = newTime;
             setProgress(e.target.value);
             setCurrentTime(formatTime(newTime));
+            setRawTime(newTime);
         }
     };
 
@@ -120,7 +128,6 @@ const Player = () => {
         setPlaybackRate(rates[nextIndex]);
     };
 
-    // NEW FEATURE: OS-Level Mobile Sharing API
     const handleShare = async () => {
         if (!currentTrack) return;
         const shareData = {
@@ -137,98 +144,213 @@ const Player = () => {
         } catch(e) {}
     };
 
-    // NEW FEATURE: Instant Google Lyrics Finder
-    const handleLyrics = () => {
+    // --- NEW KARAOKE LYRICS ENGINE ---
+    const fetchLyrics = async () => {
         if (!currentTrack) return;
-        const query = `${cleanText(currentTrack.title)} ${cleanText(currentTrack.artist)} lyrics`;
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+        setLyricsLoading(true);
+        setLyricsData({ trackId: currentTrack.id, lines: [], error: null, plain: false });
+        
+        try {
+            // Strip out generic text from Saavn to maximize API match rate
+            const cleanTitle = cleanText(currentTrack.title).replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim();
+            const cleanArtist = cleanText(currentTrack.artist).split(',')[0].trim();
+            
+            const res = await fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`);
+            if (!res.ok) throw new Error("Not found");
+            const data = await res.json();
+            
+            if (data.syncedLyrics) {
+                const lines = data.syncedLyrics.split('\n');
+                const parsed = [];
+                // Regex isolates minutes, seconds, and text
+                const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+                lines.forEach(line => {
+                    const match = line.match(regex);
+                    if (match) {
+                        const min = parseInt(match[1], 10);
+                        const sec = parseInt(match[2], 10);
+                        const time = min * 60 + sec + parseInt(match[3].padEnd(3, '0')) / 1000;
+                        const text = match[4].trim();
+                        if (text) parsed.push({ time, text });
+                    }
+                });
+                setLyricsData({ trackId: currentTrack.id, lines: parsed, error: null, plain: false });
+            } else if (data.plainLyrics) {
+                // Fallback for tracks that lack strict millisecond mappings
+                setLyricsData({ trackId: currentTrack.id, lines: [{ time: 0, text: data.plainLyrics }], error: null, plain: true });
+            } else {
+                 throw new Error("No lyrics");
+            }
+        } catch (err) {
+            setLyricsData({ trackId: currentTrack.id, lines: [], error: "Synced lyrics not available for this track yet.", plain: false });
+        }
+        setLyricsLoading(false);
     };
+
+    const toggleLyricsUI = () => {
+        if (!showLyrics) {
+            setShowLyrics(true);
+            if (lyricsData.trackId !== currentTrack?.id) fetchLyrics();
+        } else setShowLyrics(false);
+    };
+
+    // Auto-fetch if user leaves the lyrics panel open and the song changes
+    useEffect(() => {
+        if (showLyrics && currentTrack && lyricsData.trackId !== currentTrack.id) fetchLyrics();
+    }, [currentTrack]);
+
+    // Calculate active singing line
+    let activeIndex = -1;
+    if (lyricsData.lines && !lyricsData.plain) {
+        for (let i = 0; i < lyricsData.lines.length; i++) {
+            if (rawTime >= lyricsData.lines[i].time) activeIndex = i;
+            else break;
+        }
+    }
+
+    // Mathematical Auto-Scroller
+    useEffect(() => {
+        if (showLyrics && activeIndex !== -1 && !lyricsData.plain) {
+            const activeEl = document.getElementById(`lyric-line-${activeIndex}`);
+            if (activeEl && lyricsContainerRef.current) {
+                activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, [activeIndex, showLyrics]);
 
     if (!currentTrack) return null;
 
     return (
-        <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
-            <style>
-                {`
-                    @keyframes eqAnim { 0% { height: 20%; } 50% { height: 100%; } 100% { height: 40%; } }
-                    .eq-bar { animation: eqAnim 1s ease-in-out infinite alternate; transform-origin: bottom; }
-                    input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-                    .seek-bar::-webkit-slider-thumb { width: 1px; height: 1px; background: transparent; border: none; }
-                    @media (min-width: 768px) { .seek-bar::-webkit-slider-thumb { width: 14px; height: 14px; background: #22c55e; } }
-                `}
-            </style>
-
-            <div className="md:hidden absolute top-[-4px] left-0 w-full h-2">
-                 <input 
-                    type="range" min="0" max="100" step="0.1" value={progress}
-                    onMouseDown={() => setIsDragging(true)} onTouchStart={() => setIsDragging(true)}
-                    onChange={(e) => setProgress(e.target.value)}
-                    onMouseUp={handleSeekEnd} onTouchEnd={handleSeekEnd}
-                    className="seek-bar w-full h-full bg-gray-800 appearance-none cursor-pointer m-0"
-                    style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #1f2937 ${progress}%)` }}
-                />
-            </div>
-
-            <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
-                <img src={currentTrack.cover} alt="Cover" className="h-10 w-10 md:h-14 md:w-14 rounded shadow-lg flex-shrink-0" />
-                <div className="flex flex-col min-w-0">
-                    <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
-                    <div className="flex items-center gap-2">
-                        <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
-                        
-                        {/* INJECTED SMART UI: Lyrics and Share tools embedded smoothly here */}
-                        <button onClick={handleLyrics} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Find Lyrics">📝</button>
-                        <button onClick={handleShare} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
-                        
-                        <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded ml-auto">{currentTime} / {duration}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex flex-col items-center w-[55%] md:w-2/4">
-                <div className="flex gap-2 md:gap-6 items-center justify-end md:justify-center w-full">
-                    <button onClick={handleSleepTimer} className={`md:hidden transition text-lg flex-shrink-0 mr-1 ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`}>🌙</button>
-                    <button onClick={handleAddToPlaylist} className="md:hidden text-gray-400 hover:text-green-500 transition text-lg flex-shrink-0 mr-1">➕</button>
-                    
-                    <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
-                    <button onClick={togglePlay} className="h-10 w-10 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0">
-                        {isPlaying ? '⏸' : '▶'}
-                    </button>
-                    <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
-                    
-                    <button onClick={cyclePlaybackRate} className="md:hidden text-gray-400 hover:text-white transition text-[10px] font-bold flex-shrink-0 ml-1 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
-                    <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
-                </div>
+        <>
+            {/* --- THE FULL-SCREEN LYRICS OVERLAY (Rendered Behind Player Bar) --- */}
+            <div className={`fixed inset-0 z-40 transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col items-center justify-start pt-20 pb-32 ${showLyrics ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
                 
-                <div className="hidden md:flex w-full mt-2 items-center gap-3 max-w-xl">
-                    <span className="text-xs text-gray-400 w-8 text-right font-mono">{currentTime}</span>
+                {/* Dynamic Blurred Background Engine */}
+                <div className="absolute inset-0 bg-cover bg-center blur-[80px] opacity-40 scale-125 transition-all duration-1000" style={{ backgroundImage: `url(${currentTrack?.cover})` }}></div>
+                <div className="absolute inset-0 bg-gray-950/70 backdrop-blur-sm"></div>
+                
+                <button onClick={toggleLyricsUI} className="absolute top-6 right-6 md:top-10 md:right-10 text-gray-400 hover:text-white text-3xl md:text-4xl z-50 transition active:scale-90 bg-black/20 p-2 rounded-full border border-gray-600/30">✕</button>
+                
+                <div className="z-50 w-full max-w-3xl px-6 h-full overflow-y-auto scrollbar-hide text-center flex flex-col relative" ref={lyricsContainerRef} style={{ scrollBehavior: 'smooth' }}>
+                    
+                    <div className="min-h-[40vh] flex-shrink-0"></div>
+
+                    {lyricsLoading && <p className="text-gray-400 animate-pulse text-lg mt-10">Syncing with global lyric database...</p>}
+                    
+                    {lyricsData.error && (
+                        <div className="mt-10 p-6 bg-red-900/20 border border-red-800 rounded-2xl mx-auto w-[80%]">
+                            <p className="text-red-400 text-lg font-bold">{lyricsData.error}</p>
+                            <p className="text-gray-500 text-xs mt-2">Regional tracks or unreleased remixes often lack timestamped lyric data.</p>
+                        </div>
+                    )}
+                    
+                    {lyricsData.plain && <div className="text-gray-300 mt-10 whitespace-pre-wrap leading-[3] text-lg md:text-xl font-medium tracking-wide">{lyricsData.lines[0].text}</div>}
+                    
+                    {!lyricsLoading && !lyricsData.error && !lyricsData.plain && lyricsData.lines?.map((line, idx) => (
+                        <p 
+                            key={idx} 
+                            id={`lyric-line-${idx}`} 
+                            // Secret Interaction: Click lyric to fast-forward
+                            onClick={() => {
+                                if(audioRef.current && audioRef.current.duration) {
+                                    audioRef.current.currentTime = line.time;
+                                    setRawTime(line.time);
+                                }
+                            }}
+                            className={`text-2xl md:text-5xl font-extrabold my-4 md:my-8 transition-all duration-500 ease-out cursor-pointer hover:text-white ${activeIndex === idx ? 'text-green-400 scale-105 drop-shadow-[0_0_25px_rgba(34,197,94,0.6)] opacity-100' : 'text-gray-500/60 blur-[1px] opacity-50 scale-95'}`}
+                        >
+                            {line.text}
+                        </p>
+                    ))}
+
+                    <div className="min-h-[50vh] flex-shrink-0"></div>
+                </div>
+            </div>
+
+            {/* --- THE MAIN PLAYER BAR (z-50) --- */}
+            <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
+                <style>
+                    {`
+                        @keyframes eqAnim { 0% { height: 20%; } 50% { height: 100%; } 100% { height: 40%; } }
+                        .eq-bar { animation: eqAnim 1s ease-in-out infinite alternate; transform-origin: bottom; }
+                        input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+                        .seek-bar::-webkit-slider-thumb { width: 1px; height: 1px; background: transparent; border: none; }
+                        @media (min-width: 768px) { .seek-bar::-webkit-slider-thumb { width: 14px; height: 14px; background: #22c55e; } }
+                    `}
+                </style>
+
+                <div className="md:hidden absolute top-[-4px] left-0 w-full h-2">
                     <input 
                         type="range" min="0" max="100" step="0.1" value={progress}
-                        onMouseDown={() => setIsDragging(true)} onChange={(e) => setProgress(e.target.value)} onMouseUp={handleSeekEnd}
-                        className="seek-bar flex-1 h-1.5 bg-gray-700/50 rounded-full appearance-none cursor-pointer"
-                        style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #374151 ${progress}%)` }}
+                        onMouseDown={() => setIsDragging(true)} onTouchStart={() => setIsDragging(true)}
+                        onChange={(e) => setProgress(e.target.value)}
+                        onMouseUp={handleSeekEnd} onTouchEnd={handleSeekEnd}
+                        className="seek-bar w-full h-full bg-gray-800 appearance-none cursor-pointer m-0"
+                        style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #1f2937 ${progress}%)` }}
                     />
-                    <span className="text-xs text-gray-400 w-8 font-mono">{duration}</span>
                 </div>
-            </div>
 
-            <div className="hidden md:flex w-1/4 justify-end items-center gap-4 pr-2">
-                <div className="flex items-center gap-2 mr-2">
-                    <button onClick={toggleMute} className="text-gray-400 hover:text-white transition text-lg w-6">
-                        {isMuted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
-                    </button>
-                    <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #22c55e ${volume * 100}%, #374151 ${volume * 100}%)` }} />
+                <div className="flex items-center gap-2 md:gap-3 w-[45%] md:w-1/4 overflow-hidden">
+                    <img src={currentTrack.cover} alt="Cover" className="h-10 w-10 md:h-14 md:w-14 rounded shadow-lg flex-shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                        <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
+                            
+                            {/* UPGRADED: Toggle Karaoke UI instead of Google Search */}
+                            <button onClick={toggleLyricsUI} className={`text-[10px] md:text-xs transition flex-shrink-0 ${showLyrics ? 'text-green-500' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
+                            <button onClick={handleShare} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
+                            
+                            <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded ml-auto">{currentTime} / {duration}</span>
+                        </div>
+                    </div>
                 </div>
-                
-                <button onClick={handleSleepTimer} className={`transition text-xl ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`} title="Sleep Timer">🌙</button>
-                <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-xs font-bold bg-gray-800 px-2 py-1 rounded border border-gray-700" title="Playback Speed">{playbackRate}x</button>
-                
-                <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-xl" title="Add to Playlist">➕</button>
-                <button onClick={handleDownload} className="text-gray-400 hover:text-white transition text-xl" title="Download Offline">⬇️</button>
-                <div className="w-px h-8 bg-gray-700/50 mx-1"></div>
-                <button onClick={closePlayer} className="text-gray-500 hover:text-red-500 transition text-2xl font-bold" title="Close Player">✕</button>
+
+                <div className="flex flex-col items-center w-[55%] md:w-2/4">
+                    <div className="flex gap-2 md:gap-6 items-center justify-end md:justify-center w-full">
+                        <button onClick={handleSleepTimer} className={`md:hidden transition text-lg flex-shrink-0 mr-1 ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`}>🌙</button>
+                        <button onClick={handleAddToPlaylist} className="md:hidden text-gray-400 hover:text-green-500 transition text-lg flex-shrink-0 mr-1">➕</button>
+                        
+                        <button onClick={playPrevious} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏮</button>
+                        <button onClick={togglePlay} className="h-10 w-10 md:h-12 md:w-12 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition shadow-xl flex-shrink-0">
+                            {isPlaying ? '⏸' : '▶'}
+                        </button>
+                        <button onClick={playNext} className="text-gray-400 hover:text-white transition active:scale-95 text-xl md:text-2xl">⏭</button>
+                        
+                        <button onClick={cyclePlaybackRate} className="md:hidden text-gray-400 hover:text-white transition text-[10px] font-bold flex-shrink-0 ml-1 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">{playbackRate}x</button>
+                        <button onClick={closePlayer} className="md:hidden text-gray-500 hover:text-red-500 transition text-lg font-bold ml-1 flex-shrink-0">✕</button>
+                    </div>
+                    
+                    <div className="hidden md:flex w-full mt-2 items-center gap-3 max-w-xl">
+                        <span className="text-xs text-gray-400 w-8 text-right font-mono">{currentTime}</span>
+                        <input 
+                            type="range" min="0" max="100" step="0.1" value={progress}
+                            onMouseDown={() => setIsDragging(true)} onChange={(e) => setProgress(e.target.value)} onMouseUp={handleSeekEnd}
+                            className="seek-bar flex-1 h-1.5 bg-gray-700/50 rounded-full appearance-none cursor-pointer"
+                            style={{ background: `linear-gradient(to right, #22c55e ${progress}%, #374151 ${progress}%)` }}
+                        />
+                        <span className="text-xs text-gray-400 w-8 font-mono">{duration}</span>
+                    </div>
+                </div>
+
+                <div className="hidden md:flex w-1/4 justify-end items-center gap-4 pr-2">
+                    <div className="flex items-center gap-2 mr-2">
+                        <button onClick={toggleMute} className="text-gray-400 hover:text-white transition text-lg w-6">
+                            {isMuted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
+                        </button>
+                        <input type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #22c55e ${volume * 100}%, #374151 ${volume * 100}%)` }} />
+                    </div>
+                    
+                    <button onClick={handleSleepTimer} className={`transition text-xl ${sleepTimer ? 'text-indigo-400 animate-pulse' : 'text-gray-400 hover:text-indigo-400'}`} title="Sleep Timer">🌙</button>
+                    <button onClick={cyclePlaybackRate} className="text-gray-400 hover:text-white transition text-xs font-bold bg-gray-800 px-2 py-1 rounded border border-gray-700" title="Playback Speed">{playbackRate}x</button>
+                    
+                    <button onClick={handleAddToPlaylist} className="text-gray-400 hover:text-green-500 transition text-xl" title="Add to Playlist">➕</button>
+                    <button onClick={handleDownload} className="text-gray-400 hover:text-white transition text-xl" title="Download Offline">⬇️</button>
+                    <div className="w-px h-8 bg-gray-700/50 mx-1"></div>
+                    <button onClick={closePlayer} className="text-gray-500 hover:text-red-500 transition text-2xl font-bold" title="Close Player">✕</button>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 
