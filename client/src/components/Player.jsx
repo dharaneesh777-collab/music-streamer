@@ -15,10 +15,11 @@ const Player = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [sleepTimer, setSleepTimer] = useState(null); 
     
-    // NEW LYRICS ENGINE STATE
+    // LYRICS ENGINE STATE
     const [showLyrics, setShowLyrics] = useState(false);
     const [lyricsData, setLyricsData] = useState({ trackId: null, lines: [], error: null, plain: false });
     const [lyricsLoading, setLyricsLoading] = useState(false);
+    const [lyricOffset, setLyricOffset] = useState(0); // NEW: The Sync Nudge State
     const lyricsContainerRef = useRef(null);
 
     const formatTime = (time) => {
@@ -46,7 +47,7 @@ const Player = () => {
             if (audio.duration && !isDragging) {
                 setProgress((audio.currentTime / audio.duration) * 100);
                 setCurrentTime(formatTime(audio.currentTime));
-                setRawTime(audio.currentTime); // Pass raw numerical seconds to the Lyrics Engine
+                setRawTime(audio.currentTime); 
             }
         };
         const updateDuration = () => setDuration(formatTime(audio.duration));
@@ -117,7 +118,7 @@ const Player = () => {
                     setSleepTimer(null);
                 }, parsed * 60000);
                 setSleepTimer(timer);
-                alert(`🌙 Sleep timer set for ${parsed} minutes. Music will pause automatically.`);
+                alert(`🌙 Sleep timer set for ${parsed} minutes.`);
             }
         }
     };
@@ -144,14 +145,13 @@ const Player = () => {
         } catch(e) {}
     };
 
-    // --- NEW KARAOKE LYRICS ENGINE ---
+    // --- KARAOKE LYRICS ENGINE ---
     const fetchLyrics = async () => {
         if (!currentTrack) return;
         setLyricsLoading(true);
         setLyricsData({ trackId: currentTrack.id, lines: [], error: null, plain: false });
         
         try {
-            // Strip out generic text from Saavn to maximize API match rate
             const cleanTitle = cleanText(currentTrack.title).replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim();
             const cleanArtist = cleanText(currentTrack.artist).split(',')[0].trim();
             
@@ -162,7 +162,6 @@ const Player = () => {
             if (data.syncedLyrics) {
                 const lines = data.syncedLyrics.split('\n');
                 const parsed = [];
-                // Regex isolates minutes, seconds, and text
                 const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
                 lines.forEach(line => {
                     const match = line.match(regex);
@@ -176,7 +175,6 @@ const Player = () => {
                 });
                 setLyricsData({ trackId: currentTrack.id, lines: parsed, error: null, plain: false });
             } else if (data.plainLyrics) {
-                // Fallback for tracks that lack strict millisecond mappings
                 setLyricsData({ trackId: currentTrack.id, lines: [{ time: 0, text: data.plainLyrics }], error: null, plain: true });
             } else {
                  throw new Error("No lyrics");
@@ -194,16 +192,19 @@ const Player = () => {
         } else setShowLyrics(false);
     };
 
-    // Auto-fetch if user leaves the lyrics panel open and the song changes
     useEffect(() => {
-        if (showLyrics && currentTrack && lyricsData.trackId !== currentTrack.id) fetchLyrics();
+        if (showLyrics && currentTrack && lyricsData.trackId !== currentTrack.id) {
+            setLyricOffset(0); // Reset offset on new track
+            fetchLyrics();
+        }
     }, [currentTrack]);
 
-    // Calculate active singing line
+    // CALCULATE ACTIVE LINE USING USER'S SYNC OFFSET
     let activeIndex = -1;
     if (lyricsData.lines && !lyricsData.plain) {
         for (let i = 0; i < lyricsData.lines.length; i++) {
-            if (rawTime >= lyricsData.lines[i].time) activeIndex = i;
+            // Include offset mathematically: If lyrics are early, positive offset delays them.
+            if (rawTime + lyricOffset >= lyricsData.lines[i].time) activeIndex = i;
             else break;
         }
     }
@@ -222,52 +223,58 @@ const Player = () => {
 
     return (
         <>
-            {/* --- THE FULL-SCREEN LYRICS OVERLAY (Rendered Behind Player Bar) --- */}
-            <div className={`fixed inset-0 z-40 transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col items-center justify-start pt-20 pb-32 ${showLyrics ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+            {/* --- THE NEW FLOATING LYRICS WIDGET --- */}
+            <div className={`fixed bottom-[136px] md:bottom-[104px] right-2 md:right-6 w-[calc(100%-16px)] md:w-[400px] h-[55vh] md:h-[65vh] z-40 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col items-center justify-start rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-gray-700/50 ${showLyrics ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'}`}>
                 
-                {/* Dynamic Blurred Background Engine */}
-                <div className="absolute inset-0 bg-cover bg-center blur-[80px] opacity-40 scale-125 transition-all duration-1000" style={{ backgroundImage: `url(${currentTrack?.cover})` }}></div>
-                <div className="absolute inset-0 bg-gray-950/70 backdrop-blur-sm"></div>
+                <div className="absolute inset-0 bg-cover bg-center blur-[30px] opacity-60 scale-125 transition-all duration-1000" style={{ backgroundImage: `url(${currentTrack?.cover})` }}></div>
+                <div className="absolute inset-0 bg-gray-950/70 backdrop-blur-md"></div>
                 
-                <button onClick={toggleLyricsUI} className="absolute top-6 right-6 md:top-10 md:right-10 text-gray-400 hover:text-white text-3xl md:text-4xl z-50 transition active:scale-90 bg-black/20 p-2 rounded-full border border-gray-600/30">✕</button>
+                {/* Header & Sync Nudge Controls */}
+                <div className="absolute top-0 w-full p-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/80 to-transparent">
+                    <div className="flex items-center gap-1 bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-gray-500/30 shadow-inner">
+                        <button onClick={() => setLyricOffset(prev => prev - 0.5)} className="text-gray-400 hover:text-white px-2 text-sm font-bold active:scale-90 transition" title="Lyrics are too early? Delay them.">-0.5s</button>
+                        <span className="text-green-400 text-[10px] md:text-xs font-mono w-10 text-center tracking-tighter">Sync {lyricOffset > 0 ? '+' : ''}{lyricOffset}s</span>
+                        <button onClick={() => setLyricOffset(prev => prev + 0.5)} className="text-gray-400 hover:text-white px-2 text-sm font-bold active:scale-90 transition" title="Lyrics are too late? Advance them.">+0.5s</button>
+                    </div>
+                    <button onClick={toggleLyricsUI} className="text-gray-400 hover:text-white text-xl bg-black/50 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm border border-gray-500/30 transition active:scale-90">✕</button>
+                </div>
                 
-                <div className="z-50 w-full max-w-3xl px-6 h-full overflow-y-auto scrollbar-hide text-center flex flex-col relative" ref={lyricsContainerRef} style={{ scrollBehavior: 'smooth' }}>
-                    
-                    <div className="min-h-[40vh] flex-shrink-0"></div>
+                <div className="z-40 w-full px-6 h-full overflow-y-auto scrollbar-hide text-center flex flex-col relative pt-16 pb-32" ref={lyricsContainerRef} style={{ scrollBehavior: 'smooth' }}>
+                    <div className="min-h-[20vh] flex-shrink-0"></div>
 
-                    {lyricsLoading && <p className="text-gray-400 animate-pulse text-lg mt-10">Syncing with global lyric database...</p>}
+                    {lyricsLoading && <p className="text-gray-400 animate-pulse text-sm mt-10">Syncing database...</p>}
                     
                     {lyricsData.error && (
-                        <div className="mt-10 p-6 bg-red-900/20 border border-red-800 rounded-2xl mx-auto w-[80%]">
-                            <p className="text-red-400 text-lg font-bold">{lyricsData.error}</p>
-                            <p className="text-gray-500 text-xs mt-2">Regional tracks or unreleased remixes often lack timestamped lyric data.</p>
+                        <div className="mt-10 p-4 bg-red-900/20 border border-red-800 rounded-2xl mx-auto w-full">
+                            <p className="text-red-400 text-sm font-bold">{lyricsData.error}</p>
+                            <p className="text-gray-500 text-[10px] mt-2">Regional tracks often lack timestamped data.</p>
                         </div>
                     )}
                     
-                    {lyricsData.plain && <div className="text-gray-300 mt-10 whitespace-pre-wrap leading-[3] text-lg md:text-xl font-medium tracking-wide">{lyricsData.lines[0].text}</div>}
+                    {lyricsData.plain && <div className="text-gray-300 mt-10 whitespace-pre-wrap leading-[2.5] text-sm font-medium tracking-wide">{lyricsData.lines[0].text}</div>}
                     
                     {!lyricsLoading && !lyricsData.error && !lyricsData.plain && lyricsData.lines?.map((line, idx) => (
                         <p 
                             key={idx} 
                             id={`lyric-line-${idx}`} 
-                            // Secret Interaction: Click lyric to fast-forward
                             onClick={() => {
                                 if(audioRef.current && audioRef.current.duration) {
-                                    audioRef.current.currentTime = line.time;
-                                    setRawTime(line.time);
+                                    const targetTime = Math.max(0, line.time - lyricOffset); // Adjust jump for current sync
+                                    audioRef.current.currentTime = targetTime;
+                                    setRawTime(targetTime);
                                 }
                             }}
-                            className={`text-2xl md:text-5xl font-extrabold my-4 md:my-8 transition-all duration-500 ease-out cursor-pointer hover:text-white ${activeIndex === idx ? 'text-green-400 scale-105 drop-shadow-[0_0_25px_rgba(34,197,94,0.6)] opacity-100' : 'text-gray-500/60 blur-[1px] opacity-50 scale-95'}`}
+                            className={`text-lg md:text-2xl font-extrabold my-3 transition-all duration-300 ease-out cursor-pointer hover:text-white ${activeIndex === idx ? 'text-green-400 scale-[1.05] drop-shadow-[0_0_15px_rgba(34,197,94,0.6)] opacity-100' : 'text-gray-500/50 opacity-40 scale-95'}`}
                         >
                             {line.text}
                         </p>
                     ))}
 
-                    <div className="min-h-[50vh] flex-shrink-0"></div>
+                    <div className="min-h-[30vh] flex-shrink-0"></div>
                 </div>
             </div>
 
-            {/* --- THE MAIN PLAYER BAR (z-50) --- */}
+            {/* --- THE MAIN PLAYER BAR --- */}
             <div className="fixed bottom-16 md:bottom-0 left-0 w-full h-16 md:h-24 bg-gray-950/90 backdrop-blur-xl border-t border-gray-800/50 flex items-center px-2 md:px-6 justify-between z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] touch-none">
                 <style>
                     {`
@@ -297,8 +304,7 @@ const Player = () => {
                         <div className="flex items-center gap-2">
                             <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
                             
-                            {/* UPGRADED: Toggle Karaoke UI instead of Google Search */}
-                            <button onClick={toggleLyricsUI} className={`text-[10px] md:text-xs transition flex-shrink-0 ${showLyrics ? 'text-green-500' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
+                            <button onClick={toggleLyricsUI} className={`text-[10px] md:text-xs transition flex-shrink-0 ${showLyrics ? 'text-green-500 drop-shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'text-gray-400 hover:text-white'}`} title="Karaoke Mode">📝</button>
                             <button onClick={handleShare} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
                             
                             <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded ml-auto">{currentTime} / {duration}</span>
