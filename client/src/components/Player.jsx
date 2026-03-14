@@ -21,15 +21,17 @@ const Player = () => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
+    // UPGRADED: Added Pro Keyboard Navigation (Arrows)
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
-                e.preventDefault(); togglePlay();
-            }
+            if (document.activeElement.tagName === 'INPUT') return;
+            if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+            if (e.code === 'ArrowRight') { e.preventDefault(); playNext(); }
+            if (e.code === 'ArrowLeft') { e.preventDefault(); playPrevious(); }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [togglePlay]);
+    }, [togglePlay, playNext, playPrevious]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -118,6 +120,30 @@ const Player = () => {
         setPlaybackRate(rates[nextIndex]);
     };
 
+    // NEW FEATURE: OS-Level Mobile Sharing API
+    const handleShare = async () => {
+        if (!currentTrack) return;
+        const shareData = {
+            title: cleanText(currentTrack.title),
+            text: `Listening to ${cleanText(currentTrack.title)} by ${cleanText(currentTrack.artist)} on Streamer!`,
+            url: window.location.origin
+        };
+        try {
+            if (navigator.share) await navigator.share(shareData);
+            else {
+                navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+                alert("Link copied to clipboard!");
+            }
+        } catch(e) {}
+    };
+
+    // NEW FEATURE: Instant Google Lyrics Finder
+    const handleLyrics = () => {
+        if (!currentTrack) return;
+        const query = `${cleanText(currentTrack.title)} ${cleanText(currentTrack.artist)} lyrics`;
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+    };
+
     if (!currentTrack) return null;
 
     return (
@@ -149,7 +175,12 @@ const Player = () => {
                     <h4 className="text-[11px] md:text-sm font-bold truncate">{cleanText(currentTrack.title)}</h4>
                     <div className="flex items-center gap-2">
                         <p className="text-[9px] md:text-xs text-gray-400 truncate max-w-[60px] md:max-w-[120px]">{cleanText(currentTrack.artist)}</p>
-                        <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded">{currentTime} / {duration}</span>
+                        
+                        {/* INJECTED SMART UI: Lyrics and Share tools embedded smoothly here */}
+                        <button onClick={handleLyrics} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Find Lyrics">📝</button>
+                        <button onClick={handleShare} className="text-[10px] md:text-xs text-gray-400 hover:text-white transition flex-shrink-0" title="Share Song">🔗</button>
+                        
+                        <span className="md:hidden text-[8px] text-green-500 font-mono tracking-tighter bg-green-900/20 px-1 rounded ml-auto">{currentTime} / {duration}</span>
                     </div>
                 </div>
             </div>

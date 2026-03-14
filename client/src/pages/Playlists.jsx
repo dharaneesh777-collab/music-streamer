@@ -17,6 +17,12 @@ const Playlists = () => {
             setTracks(JSON.parse(localStorage.getItem('my_playlist')) || []);
             return;
         }
+
+        // NEW FEATURE: Recently Played Tab
+        if (selectedCategory === 'Recently Played') {
+            setTracks(JSON.parse(localStorage.getItem('listening_history')) || []);
+            return;
+        }
         
         setLoading(true);
         if (selectedCategory === 'Recommended') {
@@ -64,22 +70,28 @@ const Playlists = () => {
         window.open(downloadUrl, '_blank');
     };
 
-    // UPGRADED: Staggered Batch MP3 Downloader with hard limit
+    // UPGRADED FIX: Stealth <a> tags bypass the Chrome popup blocker, limit raised to 15
     const handleBatchDownload = () => {
-        const MAX_DOWNLOADS = 5;
+        const MAX_DOWNLOADS = 15;
         if (tracks.length === 0) return;
         
         if (tracks.length > MAX_DOWNLOADS) {
-            alert(`⛔ ERROR: Server Limit Exceeded.\n\nOnly ${MAX_DOWNLOADS} songs can be batch-downloaded at a time.\nYou currently have ${tracks.length} songs selected.\n\nPlease use the individual download buttons on the song cards, or clear some songs from your playlist.`);
+            alert(`⛔ ERROR: Limit Exceeded.\n\nOnly ${MAX_DOWNLOADS} songs can be batch-downloaded at a time.\nYou have ${tracks.length} songs selected.\n\nPlease clear some songs or download individually.`);
             return;
         }
         
-        if (window.confirm(`Ready to download ${tracks.length} MP3 files?\n\n(Note: If your browser blocks pop-ups, please click "Allow" in the URL bar).`)) {
+        if (window.confirm(`Ready to securely download ${tracks.length} MP3 files?\n\n(Note: Keep this tab open. Downloads will begin sequentially).`)) {
             tracks.forEach((track, index) => {
                 setTimeout(() => {
                     const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(track.audioUrl)}&title=${encodeURIComponent(track.title)}`;
-                    window.open(downloadUrl, '_blank');
-                }, index * 800); // Stagger requests by 800ms
+                    
+                    // Invisible DOM injection to mimic human clicks
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }, index * 1200); // Staggered by 1.2 seconds for server stability
             });
         }
     };
@@ -99,7 +111,7 @@ const Playlists = () => {
                 {selectedCategory === 'My Playlist' && tracks.length > 0 && (
                     <div className="flex gap-2">
                         <button onClick={handleBatchDownload} className="bg-green-900/40 text-green-500 border border-green-800 hover:bg-green-600 hover:text-white text-xs md:text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 transition active:scale-95 shadow-lg">
-                            <span>⬇️</span> <span className="hidden md:inline font-bold">Download All (Max 5)</span>
+                            <span>⬇️</span> <span className="hidden md:inline font-bold">Download All (Max 15)</span>
                         </button>
                         <button onClick={clearPlaylist} className="bg-red-900/40 text-red-500 border border-red-800 hover:bg-red-600 hover:text-white text-xs md:text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 transition active:scale-95 shadow-lg">
                             <span>🗑️</span> <span className="hidden md:inline font-bold">Clear</span>
@@ -109,7 +121,7 @@ const Playlists = () => {
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {['Recommended', 'My Playlist', ...Object.keys(artistMap)].map(cat => (
+                {['Recommended', 'Recently Played', 'My Playlist', ...Object.keys(artistMap)].map(cat => (
                     <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-semibold transition shadow-md flex-shrink-0 border ${selectedCategory === cat ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`}>{cat === 'Recommended' ? '✨ Recommended' : cat}</button>
                 ))}
             </div>
