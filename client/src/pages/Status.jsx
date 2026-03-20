@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../config';
 const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlobalMute }) => {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(false); // UPGRADED: Tracks actual video buffer state
 
     useEffect(() => {
         const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
@@ -35,7 +36,6 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
         }
     };
 
-    // UPGRADED: Tapping mute now updates the Master State, persisting to all future videos
     const toggleMute = (e) => {
         e.stopPropagation(); 
         setGlobalMute(!globalMute);
@@ -44,9 +44,12 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
     return (
         <div ref={isLastVideo ? lastVideoElementRef : null} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
             
-            <div className="absolute inset-0 flex items-center justify-center z-0">
-                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin opacity-50"></div>
-            </div>
+            {/* UPGRADED: Spinner disappears exactly when video finishes buffering */}
+            {!isLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                    <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin opacity-80"></div>
+                </div>
+            )}
 
             <video
                 ref={videoRef}
@@ -57,9 +60,10 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 playsInline
                 crossOrigin="anonymous"
                 onClick={togglePlay}
+                onLoadedData={() => setIsLoaded(true)} // Signal that buffering is complete
             />
 
-            {!isPlaying && (
+            {!isPlaying && isLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none drop-shadow-2xl">
                     <div className="bg-black/60 text-white rounded-full p-4 backdrop-blur-md flex items-center justify-center w-16 h-16 shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-white/10">
                         <span className="text-2xl ml-1">▶</span>
@@ -67,9 +71,9 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 </div>
             )}
 
+            {/* UPGRADED: Author tag removed for cleaner UI */}
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
-                <h3 className="font-bold text-lg">{video.author}</h3>
-                <p className="text-sm text-gray-300 mt-1">{video.title}</p>
+                <p className="font-bold text-lg">{video.title}</p>
             </div>
 
             <div className="absolute bottom-6 right-4 flex flex-col items-center gap-5 z-20">
@@ -98,15 +102,12 @@ const Status = () => {
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
-    
-    // UPGRADED: Master Mute State hoisted to the parent engine
     const [globalMute, setGlobalMute] = useState(true);
     const observerRef = useRef(null);
 
     const fetchVideos = async (pageNum) => {
         setIsLoading(true);
         try {
-            // UPGRADED: Fetching directly from our robust Node.js backend route
             const response = await fetch(`${API_BASE_URL}/api/status?page=${pageNum}`);
             if (!response.ok) throw new Error("Backend connection failed");
             
