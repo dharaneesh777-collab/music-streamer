@@ -5,6 +5,7 @@ import Player from './components/Player';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Playlists from './pages/Playlists';
+import Status from './pages/Status';
 import { PlayerProvider } from './context/PlayerContext';
 
 const BottomNav = () => {
@@ -12,6 +13,7 @@ const BottomNav = () => {
     const navItems = [
         { path: '/', label: 'Home', icon: '🏠' },
         { path: '/search', label: 'Search', icon: '🔍' },
+        { path: '/status', label: 'Status', icon: '📱' },
         { path: '/playlists', label: 'Playlists', icon: '📚' }
     ];
 
@@ -31,14 +33,12 @@ function App() {
     const [isInstallable, setIsInstallable] = useState(false);
 
     useEffect(() => {
-        // Listener 1: Direct OS signal
         const handleDirectPrompt = (e) => {
             e.preventDefault();
             window.deferredPrompt = e;
             setIsInstallable(true);
         };
 
-        // Listener 2: Trapped signal from index.html
         const handleTrappedPrompt = () => {
             if (window.deferredPrompt) setIsInstallable(true);
         };
@@ -46,7 +46,6 @@ function App() {
         window.addEventListener('beforeinstallprompt', handleDirectPrompt);
         window.addEventListener('pwa-install-ready', handleTrappedPrompt);
 
-        // Failsafe: Check immediately on mount
         if (window.deferredPrompt) setIsInstallable(true);
 
         return () => {
@@ -57,10 +56,8 @@ function App() {
 
     const handleInstallClick = async () => {
         if (!window.deferredPrompt) return;
-        
         window.deferredPrompt.prompt();
         const { outcome } = await window.deferredPrompt.userChoice;
-        
         if (outcome === 'accepted') {
             setIsInstallable(false);
             window.deferredPrompt = null;
@@ -72,7 +69,6 @@ function App() {
             <Router>
                 <div className="flex h-screen bg-gray-950 text-white overflow-hidden relative">
                     
-                    {/* The definitively patched Install Button */}
                     {isInstallable && (
                         <button 
                             onClick={handleInstallClick} 
@@ -91,6 +87,7 @@ function App() {
                             <Route path="/" element={<Home />} />
                             <Route path="/search" element={<Search />} />
                             <Route path="/playlists" element={<Playlists />} />
+                            <Route path="/status" element={<Status />} />
                         </Routes>
                     </div>
                     
@@ -99,7 +96,7 @@ function App() {
                             className="bg-[#2d2a24] text-[#e0b94c] px-1.5 py-4 rounded-l-md shadow-[-4px_0_15px_rgba(0,0,0,0.5)] border border-r-0 border-[#3d3a33] text-[9px] md:text-[11px] font-bold uppercase tracking-[0.2em]"
                             style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                         >
-                            Website by Dharaneesh
+                            Website by Dharaneesh Rajamanickam
                         </div>
                     </div>
 
