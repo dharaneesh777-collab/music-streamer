@@ -1,21 +1,18 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 
-const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlobalMute }) => {
+const VideoCard = ({ video, globalMute, setGlobalMute }) => {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false); 
-    const [hasError, setHasError] = useState(false); // NEW: Tracks dead videos
+    const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
-        if (videoRef.current) {
-            videoRef.current.muted = globalMute;
-        }
+        if (videoRef.current) videoRef.current.muted = globalMute;
     }, [globalMute]);
 
     useEffect(() => {
         const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
-        
         const handleIntersection = (entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting && !hasError) {
@@ -29,7 +26,6 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
 
         const observer = new IntersectionObserver(handleIntersection, observerOptions);
         if (videoRef.current) observer.observe(videoRef.current);
-        
         return () => observer.disconnect();
     }, [hasError]);
 
@@ -44,13 +40,8 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
         }
     };
 
-    const toggleMute = (e) => {
-        e.stopPropagation(); 
-        setGlobalMute(!globalMute);
-    };
-
     return (
-        <div ref={isLastVideo ? lastVideoElementRef : null} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
+        <div id={`video-container-${video.id}`} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
             
             {!isLoaded && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
@@ -58,28 +49,24 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 </div>
             )}
 
-            {/* UPGRADED: True Error UI state deployed if a network drop occurs */}
             {hasError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gray-900 text-gray-500">
                     <span className="text-4xl mb-2">⚠️</span>
-                    <p className="text-sm font-semibold">Video Unavailable</p>
+                    <p className="text-sm font-semibold">Server Proxy Blocked</p>
                 </div>
             )}
 
-            {/* CRITICAL FIX: Removed crossOrigin="anonymous" to bypass aggressive browser CORS blocks on media tags */}
+            {/* CRITICAL FIX: The Video SRC is piped directly through our Express Backend Proxy */}
             <video
                 ref={videoRef}
-                src={video.url}
+                src={`${API_BASE_URL}/api/stream?url=${encodeURIComponent(video.url)}`}
                 className={`w-full h-full object-cover relative z-10 cursor-pointer ${hasError ? 'hidden' : 'block'}`}
                 loop
                 muted={globalMute}
                 playsInline
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
-                onError={() => {
-                    setIsLoaded(true);
-                    setHasError(true);
-                }}
+                onError={() => { setIsLoaded(true); setHasError(true); }}
             />
 
             {!isPlaying && isLoaded && !hasError && (
@@ -95,20 +82,14 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
             </div>
 
             <div className="absolute bottom-6 right-4 flex flex-col items-center gap-5 z-20">
-                <button onClick={toggleMute} className="flex flex-col items-center gap-1 transition active:scale-90 mb-2">
+                <button onClick={(e) => { e.stopPropagation(); setGlobalMute(!globalMute); }} className="flex flex-col items-center gap-1 transition active:scale-90 mb-2">
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-green-500/80 shadow-lg text-lg border border-white/10">
                         {globalMute ? '🔇' : '🔊'}
                     </div>
                 </button>
-
                 <button className="flex flex-col items-center gap-1 transition active:scale-90">
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-pink-500/80 shadow-lg text-lg border border-white/10">❤️</div>
-                    <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">{video.likes}</span>
-                </button>
-                
-                <button className="flex flex-col items-center gap-1 transition active:scale-90">
-                    <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-blue-500/80 shadow-lg text-lg border border-white/10">💬</div>
-                    <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">Share</span>
+                    <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">{video.views}</span>
                 </button>
             </div>
         </div>
@@ -121,14 +102,15 @@ const Status = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [globalMute, setGlobalMute] = useState(true);
-    const observerRef = useRef(null);
+    
+    // NEW: UI State Controller (Grid View vs Fullscreen Player View)
+    const [selectedIndex, setSelectedIndex] = useState(null);
 
     const fetchVideos = async (pageNum) => {
         setIsLoading(true);
         try {
             const response = await fetch(`${API_BASE_URL}/api/status?page=${pageNum}`);
             if (!response.ok) throw new Error("Backend connection failed");
-            
             const data = await response.json();
             
             if (data.success && data.data.length > 0) {
@@ -138,55 +120,87 @@ const Status = () => {
                     return [...prev, ...newVids];
                 });
             }
-        } catch (err) {
-            setError(err.message);
-        }
+        } catch (err) { setError(err.message); }
         setIsLoading(false);
     };
 
-    useEffect(() => {
-        fetchVideos(page);
-    }, [page]);
+    useEffect(() => { fetchVideos(page); }, [page]);
 
-    const lastVideoElementRef = useCallback(node => {
-        if (isLoading) return;
-        if (observerRef.current) observerRef.current.disconnect();
-        
-        observerRef.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                setPage(prevPage => prevPage + 1);
-            }
-        }, { threshold: 0.5 });
-        
-        if (node) observerRef.current.observe(node);
-    }, [isLoading]);
+    // UI VIEW 1: The Fullscreen Immersive Player
+    if (selectedIndex !== null) {
+        // Slice the array so the player starts precisely at the video you clicked
+        const playableQueue = videos.slice(selectedIndex);
 
-    return (
-        <div className="h-[calc(100vh-130px)] md:h-screen w-full bg-black flex justify-center overflow-hidden">
-            <div className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative pb-20 md:pb-0">
+        return (
+            <div className="fixed inset-0 z-[100] bg-black flex justify-center overflow-hidden">
                 
-                {error && videos.length === 0 && (
-                    <div className="flex items-center justify-center h-full text-red-400 p-6 text-center bg-gray-900">
-                        <p>⚠️ {error}</p>
-                    </div>
-                )}
+                {/* Back Button */}
+                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-gray-800 transition">
+                    ← Back to Grid
+                </button>
 
+                <div className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative">
+                    {playableQueue.map((video) => (
+                        <VideoCard key={video.id} video={video} globalMute={globalMute} setGlobalMute={setGlobalMute} />
+                    ))}
+                    <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center text-gray-600 text-sm font-bold">
+                        End of current queue. Go back to browse more.
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // UI VIEW 2: The KKOnline.in Style Selection Grid
+    return (
+        <div className="p-4 md:p-8 pb-32">
+            <h1 className="text-2xl md:text-3xl font-bold mb-6">Status Video Downloads</h1>
+            
+            {error && videos.length === 0 && (
+                <div className="text-red-400 p-4 bg-red-900/20 rounded-md mb-6 border border-red-800">
+                    ⚠️ {error}
+                </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5">
                 {videos.map((video, index) => (
-                    <VideoCard 
+                    <div 
                         key={video.id} 
-                        video={video} 
-                        isLastVideo={videos.length === index + 1} 
-                        lastVideoElementRef={lastVideoElementRef} 
-                        globalMute={globalMute} 
-                        setGlobalMute={setGlobalMute}
-                    />
-                ))}
-
-                {isLoading && videos.length > 0 && (
-                    <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center text-green-500 text-sm font-bold animate-pulse">
-                        Loading high-definition feed...
+                        onClick={() => setSelectedIndex(index)}
+                        className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-700 transition active:scale-95 shadow-lg group flex flex-col"
+                    >
+                        <div className="relative aspect-[3/4] w-full">
+                            <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition duration-300" loading="lazy" />
+                            
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <div className="bg-green-500 text-white rounded-full p-3 shadow-[0_0_15px_rgba(34,197,94,0.6)]">
+                                    <span className="text-xl ml-1 block">▶</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="p-3 flex-1 flex flex-col justify-between">
+                            <h3 className="text-xs md:text-sm font-bold text-white line-clamp-2 mb-2 leading-tight">{video.title}</h3>
+                            <div className="flex justify-between items-center text-[10px] md:text-xs text-gray-400 font-semibold">
+                                <span className="flex items-center gap-1">👁️ {video.views}</span>
+                                <span>{video.size}</span>
+                            </div>
+                        </div>
                     </div>
-                )}
+                ))}
+            </div>
+
+            {/* Load More Button */}
+            <div className="mt-8 flex justify-center">
+                <button 
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={isLoading}
+                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95 disabled:opacity-50"
+                >
+                    {isLoading ? 'Loading...' : 'Load More Videos'}
+                </button>
             </div>
         </div>
     );

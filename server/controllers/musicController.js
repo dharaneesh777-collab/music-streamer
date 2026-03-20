@@ -126,39 +126,57 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-// UPGRADED: Rock-solid aesthetic mix. No crossOrigin limitations.
+// UPGRADED FORMAT: Added rich metadata (thumbnails, sizes) for the kkonline.in style Grid View
 const getStatusVideos = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
-    const limit = 5;
+    const limit = 10;
 
     const curatedVideos = [
-        { id: 'v1', url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4", title: "Neon City Aesthetic" },
-        { id: 'v2', url: "https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-nightclub-43400-large.mp4", title: "Club DJ Set" },
-        { id: 'v3', url: "https://cdn.coverr.co/videos/coverr-driving-through-the-city-at-night-4228/1080p.mp4", title: "Late Night Drive" },
-        { id: 'v4', url: "https://assets.mixkit.co/videos/preview/mixkit-crowd-dancing-in-a-nightclub-4351-large.mp4", title: "Festival Energy" },
-        { id: 'v5', url: "https://cdn.coverr.co/videos/coverr-a-beautiful-girl-listening-to-music-4089/1080p.mp4", title: "Lost in the Track" },
-        { id: 'v6', url: "https://assets.mixkit.co/videos/preview/mixkit-playing-a-bass-guitar-1111-large.mp4", title: "Bass Groove" },
-        { id: 'v7', url: "https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-man-dancing-in-the-dark-42469-large.mp4", title: "Rhythm & Shadows" },
-        { id: 'v8', url: "https://assets.mixkit.co/videos/preview/mixkit-drummer-playing-drums-in-a-studio-43404-large.mp4", title: "Studio Sessions" },
-        { id: 'v9', url: "https://cdn.coverr.co/videos/coverr-people-dancing-at-a-party-5267/1080p.mp4", title: "Party Vibes" },
-        { id: 'v10', url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-video-of-a-man-with-neon-lights-42491-large.mp4", title: "Abstract Frequency" }
+        { id: 'v1', url: "https://cdn.coverr.co/videos/coverr-dj-mixing-music-at-a-party-5264/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80", title: "Club DJ Set BGM Status", views: "124K", size: "3.2 MB" },
+        { id: 'v2', url: "https://cdn.coverr.co/videos/coverr-neon-lights-in-the-city-4390/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1563298723-dcfebaa392e3?w=400&q=80", title: "Neon City Vibes 4K", views: "89K", size: "2.8 MB" },
+        { id: 'v3', url: "https://cdn.coverr.co/videos/coverr-a-beautiful-girl-listening-to-music-4089/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80", title: "Lost in Music Sad Status", views: "210K", size: "4.1 MB" },
+        { id: 'v4', url: "https://cdn.coverr.co/videos/coverr-driving-through-the-city-at-night-4228/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=80", title: "Night Drive Lofi Whatsapp", views: "45K", size: "1.9 MB" },
+        { id: 'v5', url: "https://cdn.coverr.co/videos/coverr-crowd-at-a-music-festival-5269/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=400&q=80", title: "Festival Energy Full Screen", views: "330K", size: "5.5 MB" },
+        { id: 'v6', url: "https://cdn.coverr.co/videos/coverr-playing-electric-guitar-5249/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&q=80", title: "Electric Guitar Rock BGM", views: "76K", size: "2.1 MB" },
+        { id: 'v7', url: "https://cdn.coverr.co/videos/coverr-a-woman-with-neon-lights-4395/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1554284126-aa88f22d8b74?w=400&q=80", title: "Neon Portraits Aesthetic", views: "92K", size: "3.0 MB" },
+        { id: 'v8', url: "https://cdn.coverr.co/videos/coverr-playing-the-piano-in-a-studio-5244/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=400&q=80", title: "Studio Piano Melancholy", views: "112K", size: "3.7 MB" },
+        { id: 'v9', url: "https://cdn.coverr.co/videos/coverr-dj-playing-music-5265/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=400&q=80", title: "Rave DJ Bass Boosted", views: "504K", size: "4.8 MB" },
+        { id: 'v10', url: "https://cdn.coverr.co/videos/coverr-people-dancing-at-a-party-5267/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&q=80", title: "Party Vibes Dance Status", views: "201K", size: "3.4 MB" }
     ];
 
     const startIndex = ((page - 1) * limit) % curatedVideos.length;
     let paginatedData = [];
-    
     for (let i = 0; i < limit; i++) {
         const index = (startIndex + i) % curatedVideos.length;
-        paginatedData.push({
-            ...curatedVideos[index],
-            id: `${curatedVideos[index].id}-p${page}-i${i}`, 
-            likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`
-        });
+        paginatedData.push({ ...curatedVideos[index], id: `${curatedVideos[index].id}-p${page}-i${i}` });
     }
+    setTimeout(() => res.json({ success: true, data: paginatedData }), 200);
+};
 
-    setTimeout(() => {
-        res.json({ success: true, data: paginatedData });
-    }, 300);
+// UPGRADED PROXY: Spoofs headers to obliterate CORS and Hotlinking blocks completely.
+const streamTrack = async (req, res) => {
+    try {
+        const { url } = req.query;
+        const headers = req.headers.range ? { Range: req.headers.range } : {};
+        
+        // Stealth Mode: The Node server pretends to be the host website to bypass security walls
+        const spoofedHeaders = {
+            ...headers,
+            'Referer': url.includes('coverr') ? 'https://coverr.co/' : (url.includes('mixkit') ? 'https://mixkit.co/' : 'https://www.jiosaavn.com/'),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+        };
+
+        const response = await axios({ method: 'GET', url, responseType: 'stream', headers: spoofedHeaders, validateStatus: status => status < 400 });
+        
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', response.headers['content-type'] || (url.includes('.mp4') ? 'video/mp4' : 'audio/mpeg'));
+        res.setHeader('Accept-Ranges', 'bytes');
+        if (response.headers['content-length']) res.setHeader('Content-Length', response.headers['content-length']);
+        if (response.headers['content-range']) res.setHeader('Content-Range', response.headers['content-range']);
+        if (response.status === 206) res.status(206);
+        
+        response.data.pipe(res);
+    } catch (err) { res.status(500).send('Stream failed'); }
 };
 
 const getArtistPlaylist = async (req, res) => {
@@ -235,21 +253,6 @@ const searchTracks = async (req, res) => {
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
-};
-
-const streamTrack = async (req, res) => {
-    try {
-        const { url } = req.query;
-        const headers = req.headers.range ? { Range: req.headers.range } : {};
-        const response = await axios({ method: 'GET', url, responseType: 'stream', headers, validateStatus: status => status < 400 });
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Content-Type', response.headers['content-type'] || 'audio/mpeg');
-        res.setHeader('Accept-Ranges', 'bytes');
-        if (response.headers['content-length']) res.setHeader('Content-Length', response.headers['content-length']);
-        if (response.headers['content-range']) res.setHeader('Content-Range', response.headers['content-range']);
-        if (response.status === 206) res.status(206);
-        response.data.pipe(res);
-    } catch (err) { res.status(500).send('Stream failed'); }
 };
 
 const downloadTrack = async (req, res) => {
