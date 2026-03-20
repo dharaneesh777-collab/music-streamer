@@ -33,10 +33,9 @@ const deduplicateTracks = (tracks) => {
     return uniqueTracks;
 };
 
-// UPGRADED: Proxy Racing Engine using Promise.any() for extreme speed
 const fetchFromSaavn = async (query) => {
     const promises = SAAVN_PROXIES.map(proxy => 
-        axios.get(`${proxy}?query=${query}`, { timeout: 4500 }) // Tight timeout, fail fast
+        axios.get(`${proxy}?query=${query}`, { timeout: 4500 })
             .then(res => {
                 const results = res.data?.data?.results || res.data?.results || (Array.isArray(res.data) ? res.data : []);
                 if (results.length > 0) return results;
@@ -45,10 +44,9 @@ const fetchFromSaavn = async (query) => {
     );
 
     try {
-        // The fastest successful proxy wins the race instantly
         return await Promise.any(promises);
     } catch (err) {
-        return []; // Only returns empty if all 3 proxies fail simultaneously
+        return []; 
     }
 };
 
@@ -62,7 +60,6 @@ const hybridFetch = async (itunesTracks, req) => {
         const targetDuration = entry.trackTimeMillis ? entry.trackTimeMillis / 1000 : null;
         const saavnQuery = `${title} ${artist}`.replace(/[^a-zA-Z0-9 ]/g, " ");
 
-        // We use sequential here specifically for audio matching to preserve precision
         for (const proxy of SAAVN_PROXIES) {
             try {
                 const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=6`, { timeout: 4500 });
@@ -110,15 +107,27 @@ const hybridFetch = async (itunesTracks, req) => {
     return results.filter(track => track !== null);
 };
 
+// UPGRADED: The Nursery Rhyme Purge applied to the data validator
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
+        
+        // Regional validation
         if (targetLang !== 'all' && targetLang !== 'english' && targetLang !== 'japanese') {
             if (!trackLang.includes(targetLang)) return null; 
         }
+
+        // STRICT PURGE: Eradicate children's albums and rhymes globally
+        const tTitle = String(track.name || track.title || "").toLowerCase();
+        const tAlbum = String(track.album?.name || track.album?.title || track.more_info?.album || "").toLowerCase();
+        
+        if (tTitle.includes('nursery') || tTitle.includes('rhymes') || tTitle.includes('kids') || tAlbum.includes('nursery') || tAlbum.includes('rhymes')) {
+            return null;
+        }
+
         const originalUrl = getFullLengthAudio(track);
         return {
             id: track.id || Math.random().toString(),
@@ -129,6 +138,7 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
+// Anime and Artist logic remains identical...
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
@@ -160,10 +170,18 @@ const fetchTrending = async (req, res) => {
             const processed = await hybridFetch(itunesRes.data.feed.entry, req);
             return res.json({ success: true, data: deduplicateTracks(processed) });
         }
-        const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'tamil+top+50', 'hindi': 'hindi+top+50', 'telugu': 'telugu+top+50', 'malayalam': 'malayalam+top+50', 'japanese': 'jpop+anime+hits' };
+        
+        // UPGRADED QUERIES: Safer parameters that avoid triggering children's albums
+        const trendingQueries = { 
+            'all': 'top+charts+india', 
+            'tamil': 'latest+tamil+hits', 
+            'hindi': 'latest+hindi+hits', 
+            'telugu': 'latest+telugu+hits', 
+            'malayalam': 'latest+malayalam+hits', 
+            'japanese': 'jpop+anime+hits' 
+        };
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
         
-        // UPGRADED: Reduced limit from 100 to 50 for faster initial parsing
         const raw = await fetchFromSaavn(`${queryParam}&limit=50`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
