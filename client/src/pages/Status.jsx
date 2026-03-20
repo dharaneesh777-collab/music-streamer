@@ -6,6 +6,13 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false); 
 
+    // UPGRADED: Force the React DOM to strictly sync the audio hardware to our globalMute state
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = globalMute;
+        }
+    }, [globalMute]);
+
     useEffect(() => {
         const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
         
@@ -58,9 +65,9 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 muted={globalMute}
                 playsInline
                 crossOrigin="anonymous"
-                referrerPolicy="no-referrer" // THE STEALTH BYPASS: Allows Mixkit videos to stream flawlessly
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
+                onError={() => setIsLoaded(true)} // UPGRADED: Immediately kills spinner if network drops
             />
 
             {!isPlaying && isLoaded && (
@@ -71,8 +78,9 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 </div>
             )}
 
+            {/* UPGRADED UI: User names completely removed. Only pristine aesthetic titles remain. */}
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
-                <p className="font-bold text-lg">{video.title}</p>
+                <p className="font-bold text-lg drop-shadow-lg">{video.title}</p>
             </div>
 
             <div className="absolute bottom-6 right-4 flex flex-col items-center gap-5 z-20">
