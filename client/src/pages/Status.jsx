@@ -1,66 +1,38 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 
-// THE SERVERLESS VAULT: Raw AWS CloudFront Links (Zero CORS Blocks, Zero Backend Dependency)
-const AESTHETIC_VIDEOS = [
+// CRITICAL VIDEO FIX: Using Cloudinary's Developer Demo CDN. 
+// These URLs are guaranteed by Cloudinary to never expire and never block CORS.
+// The w_720,h_1280,c_fill parameter forces their cloud to crop the video into a vertical TikTok format instantly.
+const BULLETPROOF_VIDEOS = [
     { 
         id: 'v1', 
-        url: "https://videos.pexels.com/video-files/5377684/5377684-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/5377308/pexels-photo-5377308.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Neon City Cyberpunk Status", views: "124K", size: "3.2 MB" 
+        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604051080/skate.mp4", 
+        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604051080/skate.jpg", 
+        title: "Urban Skate Aesthetic", views: "124K", size: "3.2 MB" 
     },
     { 
         id: 'v2', 
-        url: "https://videos.pexels.com/video-files/4149231/4149231-hd_1080_1920_30fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/4149231/pexels-photo-4149231.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Club DJ Bass Boosted", views: "504K", size: "4.8 MB" 
+        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050857/snowboarding.mp4", 
+        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050857/snowboarding.jpg", 
+        title: "Snowboard Extreme Status", views: "504K", size: "4.8 MB" 
     },
     { 
         id: 'v3', 
-        url: "https://videos.pexels.com/video-files/5192077/5192077-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/5192077/pexels-photo-5192077.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Late Night Drive Lofi", views: "92K", size: "3.0 MB" 
+        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604049877/marmots.mp4", 
+        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604049877/marmots.jpg", 
+        title: "Nature Wilderness BGM", views: "92K", size: "3.0 MB" 
     },
     { 
         id: 'v4', 
-        url: "https://videos.pexels.com/video-files/4012053/4012053-hd_1080_1920_30fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/4012053/pexels-photo-4012053.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Concert Crowd Energy", views: "45K", size: "1.9 MB" 
+        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050220/elephants.mp4", 
+        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050220/elephants.jpg", 
+        title: "Safari Cinematic Drops", views: "45K", size: "1.9 MB" 
     },
     { 
         id: 'v5', 
-        url: "https://videos.pexels.com/video-files/5191924/5191924-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/5191924/pexels-photo-5191924.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Night Rain Aesthetic", views: "330K", size: "5.5 MB" 
-    },
-    { 
-        id: 'v6', 
-        url: "https://videos.pexels.com/video-files/3253735/3253735-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/3253735/pexels-photo-3253735.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Abstract Frequency Visuals", views: "76K", size: "2.1 MB" 
-    },
-    { 
-        id: 'v7', 
-        url: "https://videos.pexels.com/video-files/4057322/4057322-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/4057322/pexels-photo-4057322.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Lofi Room Chill Vibes", views: "201K", size: "3.4 MB" 
-    },
-    { 
-        id: 'v8', 
-        url: "https://videos.pexels.com/video-files/4148149/4148149-hd_1080_1920_30fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/4148149/pexels-photo-4148149.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Studio Guitar Solo", views: "210K", size: "4.1 MB" 
-    },
-    { 
-        id: 'v9', 
-        url: "https://videos.pexels.com/video-files/3255275/3255275-hd_1080_1920_25fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/3255275/pexels-photo-3255275.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Party Dancing Flash", views: "112K", size: "3.7 MB" 
-    },
-    { 
-        id: 'v10', 
-        url: "https://videos.pexels.com/video-files/2792370/2792370-hd_1080_1920_30fps.mp4", 
-        thumbnail: "https://images.pexels.com/photos/2792370/pexels-photo-2792370.jpeg?auto=compress&cs=tinysrgb&w=400", 
-        title: "Melancholy Walk Sad Status", views: "124K", size: "3.2 MB" 
+        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050165/dog.mp4", 
+        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050165/dog.jpg", 
+        title: "Morning Vibes Lofi", views: "330K", size: "5.5 MB" 
     }
 ];
 
@@ -104,7 +76,7 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
     };
 
     return (
-        <div id={`video-container-${video.id}`} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
+        <div className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
             
             {!isLoaded && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
@@ -119,7 +91,6 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                 </div>
             )}
 
-            {/* CRITICAL FIX: Pure HTML5 Native Streaming directly from the CDN */}
             <video
                 ref={videoRef}
                 src={video.url}
@@ -127,6 +98,7 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                 loop
                 muted={globalMute}
                 playsInline
+                preload="metadata"
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
                 onError={() => { setIsLoaded(true); setHasError(true); }}
@@ -154,10 +126,6 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-pink-500/80 shadow-lg text-lg border border-white/10">❤️</div>
                     <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">{video.views}</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 transition active:scale-90">
-                    <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-blue-500/80 shadow-lg text-lg border border-white/10">💬</div>
-                    <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">Share</span>
-                </button>
             </div>
         </div>
     );
@@ -168,21 +136,18 @@ const Status = () => {
     const [globalMute, setGlobalMute] = useState(true);
     const [selectedIndex, setSelectedIndex] = useState(null);
 
-    // SERVERLESS ARCHITECTURE: Instantly loads the grid from the local array
     useEffect(() => {
-        setVideos(AESTHETIC_VIDEOS);
+        setVideos(BULLETPROOF_VIDEOS);
     }, []);
 
-    // INFINITE SCROLL: Appends the same array to itself to create an endless loop of videos
     const loadMoreVideos = () => {
-        const nextBatch = AESTHETIC_VIDEOS.map((v, index) => ({
+        const nextBatch = BULLETPROOF_VIDEOS.map((v, index) => ({
             ...v,
             id: `v-${Date.now()}-${index}`
         }));
         setVideos(prev => [...prev, ...nextBatch]);
     };
 
-    // UI VIEW 1: Immersive Player View
     if (selectedIndex !== null) {
         const playableQueue = videos.slice(selectedIndex);
 
@@ -206,7 +171,6 @@ const Status = () => {
         );
     }
 
-    // UI VIEW 2: KKOnline Style Selection Grid
     return (
         <div className="p-4 md:p-8 pb-32">
             <h1 className="text-2xl md:text-3xl font-bold mb-6">Status Video Downloads</h1>

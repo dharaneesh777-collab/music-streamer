@@ -1,6 +1,4 @@
 ﻿const axios = require('axios');
-const https = require('https'); // NATIVE MODULE: Crucial for raw video streaming
-const http = require('http');   // NATIVE MODULE
 
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
 const SAAVN_PROXIES = ['https://saavn.sumit.co/api/search/songs', 'https://saavn.dev/api/search/songs', 'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'];
@@ -64,6 +62,7 @@ const hybridFetch = async (itunesTracks, req) => {
                 if (saavnData.length > 0) {
                     let bestMatch = null;
                     let minDiff = Infinity;
+
                     for (const t of saavnData) {
                         const tTitle = (t.name || t.title || "").toLowerCase();
                         const isCover = title.toLowerCase().includes('cover');
@@ -76,7 +75,9 @@ const hybridFetch = async (itunesTracks, req) => {
                             if (diff < minDiff) { minDiff = diff; bestMatch = t; }
                         } else if (!bestMatch) { bestMatch = t; }
                     }
+
                     if (!bestMatch) bestMatch = saavnData[0]; 
+
                     const originalUrl = getFullLengthAudio(bestMatch);
                     if (originalUrl) {
                         return {
@@ -91,6 +92,7 @@ const hybridFetch = async (itunesTracks, req) => {
         }
         return null;
     });
+
     const results = await Promise.all(promises);
     return results.filter(track => track !== null);
 };
@@ -98,7 +100,6 @@ const hybridFetch = async (itunesTracks, req) => {
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
     return results.map(track => {
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
         if (targetLang !== 'all' && targetLang !== 'english' && targetLang !== 'japanese') {
@@ -118,85 +119,110 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-const getStatusVideos = async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const limit = 10;
-
-    const curatedVideos = [
-        { id: 'v1', url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4", thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80", title: "Neon City Aesthetic WhatsApp Status", views: "124K", size: "3.2 MB" },
-        { id: 'v2', url: "https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-nightclub-43400-large.mp4", thumbnail: "https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=400&q=80", title: "Club DJ Set Bass Boosted", views: "504K", size: "4.8 MB" },
-        { id: 'v3', url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-video-of-a-man-with-neon-lights-42491-large.mp4", thumbnail: "https://images.unsplash.com/photo-1554284126-aa88f22d8b74?w=400&q=80", title: "Abstract Frequency Visualizer", views: "92K", size: "3.0 MB" },
-        { id: 'v4', url: "https://assets.mixkit.co/videos/preview/mixkit-driving-in-the-rain-at-night-5434-large.mp4", thumbnail: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=80", title: "Late Night Lofi Drive Status", views: "45K", size: "1.9 MB" },
-        { id: 'v5', url: "https://assets.mixkit.co/videos/preview/mixkit-crowd-dancing-in-a-nightclub-4351-large.mp4", thumbnail: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=400&q=80", title: "Festival Energy Full Screen", views: "330K", size: "5.5 MB" },
-        { id: 'v6', url: "https://assets.mixkit.co/videos/preview/mixkit-playing-a-bass-guitar-1111-large.mp4", thumbnail: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&q=80", title: "Bass Groove Rock BGM", views: "76K", size: "2.1 MB" },
-        { id: 'v7', url: "https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-man-dancing-in-the-dark-42469-large.mp4", thumbnail: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&q=80", title: "Rhythm & Shadows Edits", views: "201K", size: "3.4 MB" },
-        { id: 'v8', url: "https://assets.mixkit.co/videos/preview/mixkit-young-woman-listening-to-music-on-headphones-42456-large.mp4", thumbnail: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80", title: "Lost in the Track Sad Status", views: "210K", size: "4.1 MB" },
-        { id: 'v9', url: "https://assets.mixkit.co/videos/preview/mixkit-cassette-playing-in-a-vintage-stereo-48332-large.mp4", thumbnail: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=400&q=80", title: "Retro Mixtape Aesthetics", views: "112K", size: "3.7 MB" },
-        { id: 'v10', url: "https://assets.mixkit.co/videos/preview/mixkit-drummer-playing-drums-in-a-studio-43404-large.mp4", thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80", title: "Studio Sessions Drum Cover", views: "124K", size: "3.2 MB" }
-    ];
-
-    const startIndex = ((page - 1) * limit) % curatedVideos.length;
-    let paginatedData = [];
-    for (let i = 0; i < limit; i++) {
-        const index = (startIndex + i) % curatedVideos.length;
-        paginatedData.push({ ...curatedVideos[index], id: `${curatedVideos[index].id}-p${page}-i${i}` });
-    }
-    setTimeout(() => res.json({ success: true, data: paginatedData }), 200);
+const getArtistPlaylist = async (req, res) => {
+    try {
+        const { artistId } = req.params;
+        if (artistId === 'anime') {
+            const topAnimeQueries = ["Idol YOASOBI", "Gurenge LiSA", "Unravel TK", "Silhouette KANA-BOON", "Kick Back Kenshi Yonezu", "Kaikai Kitan Eve", "Blue Bird Ikimonogakari", "Cruel Angel's Thesis", "Suzume RADWIMPS", "Specialz King Gnu"];
+            const promises = topAnimeQueries.map(q => fetchFromSaavn(`${encodeURIComponent(q)}&limit=3`));
+            const resultsArray = await Promise.all(promises);
+            let allRawTracks = [];
+            resultsArray.forEach(res => { if (Array.isArray(res)) allRawTracks.push(...res); });
+            return res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
+        }
+        const query = ARTIST_QUERIES[artistId];
+        if (!query) return res.status(404).json({ success: false, message: 'Artist not found' });
+        let allRawTracks = [];
+        for (let page = 1; page <= 4; page++) {
+            const rawPage = await fetchFromSaavn(`${encodeURIComponent(query)}&limit=50&page=${page}`);
+            if (rawPage.length === 0) break; 
+            allRawTracks = allRawTracks.concat(rawPage);
+        }
+        res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
+    } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
 };
 
-// CRITICAL FIX: The Flawless Native Node TCP Streamer
-const streamTrack = (req, res) => {
+// CRITICAL MUSIC FIX: Robust Graceful Degradation for English Tracks
+const fetchTrending = async (req, res) => {
+    try {
+        const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
+        
+        if (lang === 'english') {
+            try {
+                const itunesRes = await axios.get('https://itunes.apple.com/us/rss/topsongs/limit=25/json', { timeout: 5000 });
+                const processed = await hybridFetch(itunesRes.data.feed.entry, req);
+                
+                // If Apple hybrid array is empty because proxies failed, deliberately throw error to trigger the fallback
+                if (processed.length === 0) throw new Error("Proxy resolution failed");
+                
+                return res.json({ success: true, data: deduplicateTracks(processed) });
+            } catch (appleError) {
+                console.log("Apple/Hybrid engine failed. Triggering Saavn Fallback for English.");
+                // Bulletproof Fallback: Skip Apple entirely and just grab raw Saavn english hits
+                const rawFallback = await fetchFromSaavn(`english+top+hits&limit=50`);
+                return res.json({ success: true, data: deduplicateTracks(processResults(rawFallback, req, lang)) });
+            }
+        }
+        
+        const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'latest+tamil+hits', 'hindi': 'latest+hindi+hits', 'telugu': 'latest+telugu+hits', 'malayalam': 'latest+malayalam+hits', 'japanese': 'jpop+anime+hits' };
+        const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
+        const raw = await fetchFromSaavn(`${queryParam}&limit=50`);
+        res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
+    } catch (error) { res.status(500).json({ success: false, data: [] }); }
+};
+
+const searchTracks = async (req, res) => {
+    const { q, type, id, lang } = req.query;
+    if (!q && !id) return res.json({ success: true, data: [] });
+    const targetLang = lang ? lang.toLowerCase() : 'all';
+    try {
+        if (targetLang === 'english' && !type) {
+            const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=25`);
+            const processed = await hybridFetch(itunesRes.data.results, req);
+            return res.json({ success: true, data: deduplicateTracks(processed) });
+        }
+        if (type === 'albums') {
+            const promises = ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums'].map(proxy => 
+                axios.get(`${proxy}?query=${encodeURIComponent(q)}`, { timeout: 4500 }).then(res => res.data?.data?.results || res.data?.results || [])
+            );
+            try {
+                const results = await Promise.any(promises);
+                const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
+                const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
+                if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
+            } catch(e) {}
+            return res.json({ success: true, data: [] });
+        }
+        if (type === 'albumDetails') {
+            const promises = ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id='].map(proxy => 
+                axios.get(`${proxy}${id}`, { timeout: 4500 }).then(res => res.data?.data?.songs || res.data?.songs || [])
+            );
+            try {
+                const songs = await Promise.any(promises);
+                if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req, 'all')) });
+            } catch (e) {}
+            return res.json({ success: true, data: [] });
+        }
+        
+        const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
+        res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
+    } catch (error) { res.status(500).json({ success: false, data: [] }); }
+};
+
+const streamTrack = async (req, res) => {
     try {
         const { url } = req.query;
-        if (!url) return res.status(400).send('URL required');
-
-        const client = url.startsWith('https') ? https : http;
-        
-        // Disguise the server as a legitimate browser
-        const options = {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-            }
-        };
-
-        // Spoof the Referer to bypass CDN hotlink protections natively
-        if (url.includes('mixkit.co')) options.headers['Referer'] = 'https://mixkit.co/';
-        else if (url.includes('coverr.co')) options.headers['Referer'] = 'https://coverr.co/';
-        else options.headers['Referer'] = 'https://www.jiosaavn.com/';
-
-        // THE LIFESAVER: Pass the video micro-chunking logic perfectly
-        if (req.headers.range) {
-            options.headers['Range'] = req.headers.range;
-        }
-
-        const proxyReq = client.get(url, options, (upstreamResponse) => {
-            // Set CORS headers for our frontend React app
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            
-            // Mathematically mirror every single header from the CDN back to the browser
-            Object.entries(upstreamResponse.headers).forEach(([key, value]) => {
-                res.setHeader(key, value);
-            });
-
-            // Mirror the exact status code (200 OK or 206 Partial Content)
-            res.status(upstreamResponse.statusCode);
-
-            // Pipe the raw TCP bytes
-            upstreamResponse.pipe(res);
-        });
-
-        proxyReq.on('error', (err) => {
-            console.error('Proxy stream network error:', err);
-            if (!res.headersSent) res.status(500).send('Stream failed');
-        });
-    } catch (err) {
-        if (!res.headersSent) res.status(500).send('Stream failed');
-    }
+        const headers = req.headers.range ? { Range: req.headers.range } : {};
+        const response = await axios({ method: 'GET', url, responseType: 'stream', headers, validateStatus: status => status < 400 });
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', response.headers['content-type'] || 'audio/mpeg');
+        res.setHeader('Accept-Ranges', 'bytes');
+        if (response.headers['content-length']) res.setHeader('Content-Length', response.headers['content-length']);
+        if (response.headers['content-range']) res.setHeader('Content-Range', response.headers['content-range']);
+        if (response.status === 206) res.status(206);
+        response.data.pipe(res);
+    } catch (err) { res.status(500).send('Stream failed'); }
 };
-
-const getArtistPlaylist = async (req, res) => { /* Code remains unchanged for length */ res.json({success:false}); };
-const fetchTrending = async (req, res) => { /* Code remains unchanged for length */ res.json({success:false}); };
-const searchTracks = async (req, res) => { /* Code remains unchanged for length */ res.json({success:false}); };
 
 const downloadTrack = async (req, res) => {
     try {
@@ -208,5 +234,7 @@ const downloadTrack = async (req, res) => {
         response.data.pipe(res);
     } catch (err) { res.status(500).send('Download failed'); }
 };
+
+const getStatusVideos = async (req, res) => { res.json({success:false}); }; // Deprecated, moved to pure client-side
 
 module.exports = { fetchTrending, searchTracks, downloadTrack, streamTrack, getArtistPlaylist, getStatusVideos };
