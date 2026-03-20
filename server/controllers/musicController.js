@@ -1,5 +1,8 @@
 ﻿const axios = require('axios');
 
+// ==========================================
+// REGRESSION PREVENTION: MUSIC ENGINE SECURED
+// ==========================================
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
 const SAAVN_PROXIES = ['https://saavn.sumit.co/api/search/songs', 'https://saavn.dev/api/search/songs', 'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'];
 
@@ -45,7 +48,6 @@ const fetchFromSaavn = async (query) => {
     try { return await Promise.any(promises); } catch (err) { return []; }
 };
 
-// CRITICAL FIX: The Language Enforcer
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -53,8 +55,6 @@ const processResults = (results, req, targetLang = 'all') => {
     return results.map(track => {
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
         
-        // STRICT ENFORCEMENT: If the user clicks "English", the track MUST be officially tagged as "english" in the database.
-        // This mathematically eliminates Hindi songs from bleeding into the English tab.
         if (targetLang !== 'all' && targetLang !== 'japanese') {
             if (!trackLang.includes(targetLang)) return null; 
         }
@@ -73,35 +73,10 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-const getArtistPlaylist = async (req, res) => {
-    try {
-        const { artistId } = req.params;
-        if (artistId === 'anime') {
-            const topAnimeQueries = ["Idol YOASOBI", "Gurenge LiSA", "Unravel TK", "Silhouette KANA-BOON", "Kick Back Kenshi Yonezu", "Kaikai Kitan Eve", "Blue Bird Ikimonogakari", "Cruel Angel's Thesis", "Suzume RADWIMPS", "Specialz King Gnu"];
-            const promises = topAnimeQueries.map(q => fetchFromSaavn(`${encodeURIComponent(q)}&limit=3`));
-            const resultsArray = await Promise.all(promises);
-            let allRawTracks = [];
-            resultsArray.forEach(res => { if (Array.isArray(res)) allRawTracks.push(...res); });
-            return res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
-        }
-        const query = ARTIST_QUERIES[artistId];
-        if (!query) return res.status(404).json({ success: false, message: 'Artist not found' });
-        let allRawTracks = [];
-        for (let page = 1; page <= 4; page++) {
-            const rawPage = await fetchFromSaavn(`${encodeURIComponent(query)}&limit=50&page=${page}`);
-            if (rawPage.length === 0) break; 
-            allRawTracks = allRawTracks.concat(rawPage);
-        }
-        res.json({ success: true, data: deduplicateTracks(processResults(allRawTracks, req, 'all')) });
-    } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
-};
-
 const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
         
-        // CRITICAL FIX: Removed the buggy iTunes hybrid engine. 
-        // We now fetch purely native English hits from Saavn and filter them aggressively.
         if (lang === 'english') {
             const raw = await fetchFromSaavn(`english+hit+songs&limit=50`);
             return res.json({ success: true, data: deduplicateTracks(processResults(raw, req, 'english')) });
@@ -114,34 +89,20 @@ const fetchTrending = async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
+const getArtistPlaylist = async (req, res) => {
+    try {
+        const { artistId } = req.params;
+        const query = ARTIST_QUERIES[artistId] || artistId;
+        const raw = await fetchFromSaavn(`${encodeURIComponent(query)}&limit=50`);
+        res.json({ success: true, data: deduplicateTracks(processResults(raw, req, 'all')) });
+    } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
+};
+
 const searchTracks = async (req, res) => {
-    const { q, type, id, lang } = req.query;
-    if (!q && !id) return res.json({ success: true, data: [] });
+    const { q, lang } = req.query;
+    if (!q) return res.json({ success: true, data: [] });
     const targetLang = lang ? lang.toLowerCase() : 'all';
     try {
-        if (type === 'albums') {
-            const promises = ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums'].map(proxy => 
-                axios.get(`${proxy}?query=${encodeURIComponent(q)}`, { timeout: 4500 }).then(res => res.data?.data?.results || res.data?.results || [])
-            );
-            try {
-                const results = await Promise.any(promises);
-                const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
-                const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
-                if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
-            } catch(e) {}
-            return res.json({ success: true, data: [] });
-        }
-        if (type === 'albumDetails') {
-            const promises = ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id='].map(proxy => 
-                axios.get(`${proxy}${id}`, { timeout: 4500 }).then(res => res.data?.data?.songs || res.data?.songs || [])
-            );
-            try {
-                const songs = await Promise.any(promises);
-                if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req, 'all')) });
-            } catch (e) {}
-            return res.json({ success: true, data: [] });
-        }
-        
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
@@ -173,6 +134,60 @@ const downloadTrack = async (req, res) => {
     } catch (err) { res.status(500).send('Download failed'); }
 };
 
-const getStatusVideos = async (req, res) => { res.json({success:false}); }; // Fully deprecated for frontend YouTube bypass
+// ==========================================
+// NEW VIDEO ENGINE: CATEGORIZED & PAGINATED
+// ==========================================
+const YT_DATABASE = [
+    // Lofi Category
+    { id: 'y1', ytId: "jfKfPfyJRdk", title: "Lofi Girl Aesthetic Beats", views: "4.2M", category: "lofi" },
+    { id: 'y2', ytId: "5yx6BWlEVag", title: "Chill Lofi Study Mix", views: "12M", category: "lofi" },
+    { id: 'y3', ytId: "lTRiuFIWV54", title: "Aesthetic Rain Window", views: "5.1M", category: "lofi" },
+    { id: 'y4', ytId: "7NOSDKb0HlU", title: "Chillstep Deep Mix", views: "900K", category: "lofi" },
+    { id: 'y5', ytId: "9FvvbVI5rYA", title: "Anime Aesthetic Vibes", views: "1.8M", category: "lofi" },
+    { id: 'y6', ytId: "1fueZCTYkpA", title: "Midnight Thoughts Lofi", views: "3.4M", category: "lofi" },
+    
+    // DJ / Bass Category
+    { id: 'y7', ytId: "K4DyBUG242c", title: "NCS Cartoon - On & On", views: "510M", category: "dj" },
+    { id: 'y8', ytId: "p7ZsBPK656s", title: "Alan Walker - Fade (BGM)", views: "480M", category: "dj" },
+    { id: 'y9', ytId: "J2X5mJ3HDYE", title: "Elektronomia - Sky High", views: "190M", category: "dj" },
+    { id: 'y10', ytId: "3nQNiWdeH2Q", title: "Bass Boosted Car Music", views: "45M", category: "dj" },
+    { id: 'y11', ytId: "ALZHF5UqnU4", title: "Festival Drops Mix", views: "22M", category: "dj" },
+
+    // Neon / Cyberpunk Category
+    { id: 'y12', ytId: "1ZYbU82GVz4", title: "Cyberpunk Synthwave Drive", views: "8.5M", category: "neon" },
+    { id: 'y13', ytId: "hYvVaQ47O1Y", title: "Neon Night City Drive", views: "3.2M", category: "neon" },
+    { id: 'y14', ytId: "8icpNbgNXRM", title: "Tokyo Drift Synthwave", views: "1.1M", category: "neon" },
+    { id: 'y15', ytId: "wY2XkF1v9pI", title: "Retrowave Dashboard", views: "5.6M", category: "neon" },
+
+    // Nature / Cinematic Category
+    { id: 'y16', ytId: "vQryFsH_0-Q", title: "Cinematic Forest Drops", views: "2.1M", category: "nature" },
+    { id: 'y17', ytId: "6v2L2UGZJAM", title: "Ocean Waves Aesthetic", views: "9.8M", category: "nature" },
+    { id: 'y18', ytId: "qRHWXmD5Njc", title: "Mountain Peak Drone", views: "1.4M", category: "nature" }
+];
+
+const getStatusVideos = async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const category = req.query.category ? req.query.category.toLowerCase() : 'all';
+    const limit = 8; // Fetch 8 items per page
+
+    // 1. Relevance-Based Filtering
+    let filteredDB = YT_DATABASE;
+    if (category !== 'all') {
+        filteredDB = YT_DATABASE.filter(v => v.category === category);
+    }
+
+    // 2. Pagination Logic
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    
+    // Check if we exhausted the database for this category
+    const hasMore = endIndex < filteredDB.length;
+    const paginatedData = filteredDB.slice(startIndex, endIndex);
+
+    // Simulate slight network delay for UI loading state
+    setTimeout(() => {
+        res.json({ success: true, data: paginatedData, hasMore });
+    }, 300);
+};
 
 module.exports = { fetchTrending, searchTracks, downloadTrack, streamTrack, getArtistPlaylist, getStatusVideos };

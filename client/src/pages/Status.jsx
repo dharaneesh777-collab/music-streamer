@@ -1,18 +1,12 @@
 ﻿import { useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../config';
 
-// THE BULLETPROOF VAULT: Official YouTube IDs. 
-// These are globally hosted by Google and mathematically impossible to block via CORS.
-const YOUTUBE_SHORTS = [
-    { id: 'y1', ytId: "jfKfPfyJRdk", title: "Lofi Girl Aesthetic Beats", views: "4.2M", size: "YT Stream" },
-    { id: 'y2', ytId: "K4DyBUG242c", title: "NCS Cartoon - On & On", views: "510M", size: "YT Stream" },
-    { id: 'y3', ytId: "p7ZsBPK656s", title: "Alan Walker - Fade (BGM)", views: "480M", size: "YT Stream" },
-    { id: 'y4', ytId: "J2X5mJ3HDYE", title: "Elektronomia - Sky High", views: "190M", size: "YT Stream" },
-    { id: 'y5', ytId: "5yx6BWlEVag", title: "Chill Lofi Study Mix", views: "12M", size: "YT Stream" },
-    { id: 'y6', ytId: "1ZYbU82GVz4", title: "Cyberpunk Synthwave Drive", views: "8.5M", size: "YT Stream" },
-    { id: 'y7', ytId: "hYvVaQ47O1Y", title: "Neon Night City Drive", views: "3.2M", size: "YT Stream" },
-    { id: 'y8', ytId: "lTRiuFIWV54", title: "Aesthetic Rain Window", views: "5.1M", size: "YT Stream" },
-    { id: 'y9', ytId: "7NOSDKb0HlU", title: "Chillstep Deep Mix", views: "900K", size: "YT Stream" },
-    { id: 'y10', ytId: "9FvvbVI5rYA", title: "Anime Aesthetic Vibes", views: "1.8M", size: "YT Stream" }
+const CATEGORIES = [
+    { id: 'all', label: 'All' },
+    { id: 'lofi', label: 'Lofi Beats' },
+    { id: 'dj', label: 'DJ / Bass' },
+    { id: 'neon', label: 'Neon City' },
+    { id: 'nature', label: 'Cinematic' }
 ];
 
 const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
@@ -20,7 +14,6 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false); 
 
-    // Synchronize global mute state using YouTube's postMessage API
     useEffect(() => {
         if (iframeRef.current && isLoaded) {
             const command = globalMute ? 'mute' : 'unMute';
@@ -28,7 +21,6 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
         }
     }, [globalMute, isLoaded]);
 
-    // Intersection Observer to Auto-Play/Pause
     useEffect(() => {
         const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
         const handleIntersection = (entries) => {
@@ -44,10 +36,10 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
         };
 
         const observer = new IntersectionObserver(handleIntersection, observerOptions);
-        const container = document.getElementById(`yt-container-${video.id}`);
+        const container = document.getElementById(`yt-container-${video.ytId}`);
         if (container) observer.observe(container);
         return () => observer.disconnect();
-    }, [video.id]);
+    }, [video.ytId]);
 
     const togglePlay = () => {
         const command = isPlaying ? 'pauseVideo' : 'playVideo';
@@ -58,7 +50,7 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
     };
 
     return (
-        <div id={`yt-container-${video.id}`} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center overflow-hidden">
+        <div id={`yt-container-${video.ytId}`} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center overflow-hidden">
             
             {!isLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
@@ -66,14 +58,10 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
                 </div>
             )}
 
-            {/* CRITICAL ARCHITECTURE: The YouTube Native Engine
-                w-[300%] h-[300%] mathematically forces a standard 16:9 YouTube video to zoom in and crop 
-                perfectly into a vertical TikTok-style full-screen aesthetic!
-            */}
-            <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden flex justify-center items-center">
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden flex justify-center items-center bg-black">
                 <iframe
                     ref={iframeRef}
-                    className="w-[350%] h-[150%] md:w-[150%] md:h-[150%] object-cover pointer-events-none"
+                    className="w-[350%] h-[150%] md:w-[150%] md:h-[150%] object-cover pointer-events-none opacity-90"
                     src={`https://www.youtube-nocookie.com/embed/${video.ytId}?enablejsapi=1&autoplay=0&loop=1&playlist=${video.ytId}&controls=0&mute=1&playsinline=1&modestbranding=1&fs=0`}
                     frameBorder="0"
                     allow="autoplay; encrypted-media"
@@ -81,7 +69,6 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
                 ></iframe>
             </div>
 
-            {/* Invisible Overlay to capture swipe/click interactions without YouTube stealing them */}
             <div className="absolute inset-0 z-10 cursor-pointer" onClick={togglePlay}></div>
 
             {!isPlaying && isLoaded && (
@@ -93,7 +80,10 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
             )}
 
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
-                <p className="font-bold text-lg drop-shadow-lg">{video.title}</p>
+                <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider mb-2 inline-block shadow-md">
+                    {video.category}
+                </span>
+                <p className="font-bold text-lg drop-shadow-lg leading-tight">{video.title}</p>
             </div>
 
             <div className="absolute bottom-6 right-4 flex flex-col items-center gap-5 z-20">
@@ -113,19 +103,46 @@ const YouTubeCard = ({ video, globalMute, setGlobalMute }) => {
 
 const Status = () => {
     const [videos, setVideos] = useState([]);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('all');
+    
     const [globalMute, setGlobalMute] = useState(true);
     const [selectedIndex, setSelectedIndex] = useState(null);
 
+    // CORE REQUIREMENT: Dynamically fetches YouTube IDs based on User Criteria
+    const fetchVideos = async (pageNum, category) => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/status?page=${pageNum}&category=${category}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                setVideos(prev => {
+                    // DEDUPLICATION LOGIC: Mathematically enforce uniqueness using YouTube IDs
+                    const existingIds = new Set(prev.map(p => p.ytId));
+                    const newVids = data.data.filter(v => !existingIds.has(v.ytId));
+                    return pageNum === 1 ? data.data : [...prev, ...newVids];
+                });
+                setHasMore(data.hasMore);
+            }
+        } catch (err) { console.error("Fetch failed", err); }
+        setIsLoading(false);
+    };
+
+    // Listeners for Category Changes
     useEffect(() => {
-        setVideos(YOUTUBE_SHORTS);
-    }, []);
+        setPage(1);
+        setVideos([]); // Clear current videos on category switch
+        fetchVideos(1, activeCategory);
+    }, [activeCategory]);
 
     const loadMoreVideos = () => {
-        const nextBatch = YOUTUBE_SHORTS.map((v, index) => ({
-            ...v,
-            id: `v-${Date.now()}-${index}`
-        }));
-        setVideos(prev => [...prev, ...nextBatch]);
+        if (!hasMore || isLoading) return;
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchVideos(nextPage, activeCategory);
     };
 
     if (selectedIndex !== null) {
@@ -139,12 +156,17 @@ const Status = () => {
 
                 <div className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative">
                     {playableQueue.map((video) => (
-                        <YouTubeCard key={video.id} video={video} globalMute={globalMute} setGlobalMute={setGlobalMute} />
+                        <YouTubeCard key={video.ytId} video={video} globalMute={globalMute} setGlobalMute={setGlobalMute} />
                     ))}
+                    
                     <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center">
-                        <button onClick={loadMoreVideos} className="text-red-500 font-bold border border-red-500 px-6 py-2 rounded-full hover:bg-red-900/30 transition">
-                            Load More YouTube Shorts ↓
-                        </button>
+                        {hasMore ? (
+                            <button onClick={loadMoreVideos} disabled={isLoading} className="text-red-500 font-bold border border-red-500 px-6 py-2 rounded-full hover:bg-red-900/30 transition disabled:opacity-50">
+                                {isLoading ? 'Fetching Feed...' : 'Load More Videos ↓'}
+                            </button>
+                        ) : (
+                            <span className="text-gray-500 text-sm font-bold">End of Category Feed</span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -153,46 +175,73 @@ const Status = () => {
 
     return (
         <div className="p-4 md:p-8 pb-32">
-            <h1 className="text-2xl md:text-3xl font-bold mb-6">Trending Status Downloads</h1>
+            <h1 className="text-2xl md:text-3xl font-bold mb-4">Discover Status</h1>
+            
+            {/* SELECTION CRITERIA: Relevance-Based Filtering */}
+            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-4 mb-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {CATEGORIES.map(cat => (
+                    <button 
+                        key={cat.id} 
+                        onClick={() => setActiveCategory(cat.id)} 
+                        className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-bold transition flex-shrink-0 border ${activeCategory === cat.id ? 'bg-red-600 text-white border-red-500 shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700'}`}
+                    >
+                        {cat.label}
+                    </button>
+                ))}
+            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5 mt-2">
                 {videos.map((video, index) => (
                     <div 
-                        key={video.id} 
+                        key={video.ytId} 
                         onClick={() => setSelectedIndex(index)}
-                        className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-700 transition active:scale-95 shadow-lg group flex flex-col"
+                        className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-700 transition active:scale-95 shadow-lg group flex flex-col border border-gray-700/50"
                     >
                         <div className="relative aspect-[3/4] w-full bg-black flex items-center justify-center overflow-hidden">
-                            {/* Dynamically fetches the official High-Quality YouTube Thumbnail */}
-                            <img src={`https://img.youtube.com/vi/${video.ytId}/hqdefault.jpg`} alt={video.title} className="w-[150%] h-[150%] object-cover opacity-90 group-hover:opacity-100 transition duration-300" loading="lazy" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <img src={`https://img.youtube.com/vi/${video.ytId}/hqdefault.jpg`} alt={video.title} className="w-[150%] h-[150%] object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" loading="lazy" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                             
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="bg-red-600 text-white rounded-full p-3 shadow-[0_0_15px_rgba(220,38,38,0.6)]">
+                                <div className="bg-red-600 text-white rounded-full p-3 shadow-[0_0_15px_rgba(220,38,38,0.8)] scale-90 group-hover:scale-100 transition-transform">
                                     <span className="text-xl ml-1 block">▶</span>
                                 </div>
                             </div>
+                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-[9px] font-bold px-1.5 py-0.5 rounded text-gray-300 uppercase">
+                                {video.category}
+                            </div>
                         </div>
                         
-                        <div className="p-3 flex-1 flex flex-col justify-between">
-                            <h3 className="text-xs md:text-sm font-bold text-white line-clamp-2 mb-2 leading-tight">{video.title}</h3>
+                        <div className="p-3 flex-1 flex flex-col justify-between bg-gradient-to-b from-gray-800 to-gray-900">
+                            <h3 className="text-xs md:text-sm font-bold text-white line-clamp-2 mb-2 leading-snug">{video.title}</h3>
                             <div className="flex justify-between items-center text-[10px] md:text-xs text-gray-400 font-semibold">
-                                <span className="flex items-center gap-1 text-red-400">▶ {video.views}</span>
-                                <span>{video.size}</span>
+                                <span className="flex items-center gap-1 text-red-400 drop-shadow-md">▶ {video.views}</span>
+                                <span className="text-gray-500">YT Stream</span>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="mt-8 flex justify-center">
-                <button 
-                    onClick={loadMoreVideos}
-                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95"
-                >
-                    Load More YouTube Status
-                </button>
-            </div>
+            {isLoading && videos.length === 0 && (
+                <div className="flex justify-center items-center py-10">
+                    <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            )}
+
+            {!isLoading && videos.length > 0 && (
+                <div className="mt-8 flex justify-center">
+                    {hasMore ? (
+                        <button 
+                            onClick={loadMoreVideos}
+                            className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95 shadow-md"
+                        >
+                            Load More Shorts
+                        </button>
+                    ) : (
+                        <span className="text-gray-500 text-sm font-bold bg-gray-900 px-6 py-2 rounded-full border border-gray-800">You've seen all videos in this category.</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
