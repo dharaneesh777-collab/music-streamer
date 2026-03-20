@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 
 const CATEGORIES = [
     { id: 'all', label: 'All' },
@@ -8,120 +8,163 @@ const CATEGORIES = [
     { id: 'nature', label: 'Nature / Vlogs' }
 ];
 
-// THE MASTER VAULT: 100% Direct MP4 URLs. No YouTube iframes. No gray screens.
-const DIRECT_MP4_DATABASE = [
+// THE YOUTUBE VAULT: Curated high-quality, highly embeddable YouTube IDs.
+const YOUTUBE_SHORTS = [
     // Lofi / Aesthetic
-    { id: 'v1', category: 'lofi', url: "https://cdn.coverr.co/videos/coverr-a-beautiful-girl-listening-to-music-4089/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400", title: "Lost in the Music", views: "1.2M", size: "3.1 MB" },
-    { id: 'v2', category: 'lofi', url: "https://cdn.coverr.co/videos/coverr-driving-through-the-city-at-night-4228/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400", title: "Late Night Drive Lofi", views: "850K", size: "2.8 MB" },
-    { id: 'v3', category: 'lofi', url: "https://cdn.coverr.co/videos/coverr-playing-the-piano-in-a-studio-5244/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=400", title: "Studio Piano Melancholy", views: "2.1M", size: "3.7 MB" },
-    { id: 'v4', category: 'lofi', url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050165/dog.mp4", thumbnail: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400", title: "Morning Vibes Lofi", views: "330K", size: "4.5 MB" },
+    { id: 'v1', ytId: "jfKfPfyJRdk", title: "Lofi Girl Aesthetic Beats", views: "4.2M", category: "lofi" },
+    { id: 'v2', ytId: "5qap5aO4i9A", title: "Lofi Girl Synthwave", views: "2.1M", category: "lofi" },
+    { id: 'v3', ytId: "DWcJFNfaw9c", title: "Chillhop Radio Beats", views: "5.1M", category: "lofi" },
+    { id: 'v4', ytId: "5yx6BWlEVag", title: "Chill Lofi Study Mix", views: "1.8M", category: "lofi" },
     
     // DJ / Party
-    { id: 'v5', category: 'dj', url: "https://cdn.coverr.co/videos/coverr-dj-mixing-music-at-a-party-5264/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=400", title: "Club DJ Bass Boosted", views: "5.6M", size: "4.8 MB" },
-    { id: 'v6', category: 'dj', url: "https://cdn.coverr.co/videos/coverr-crowd-at-a-music-festival-5269/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=400", title: "Festival Crowd Energy", views: "4.1M", size: "5.5 MB" },
-    { id: 'v7', category: 'dj', url: "https://cdn.coverr.co/videos/coverr-dj-playing-music-5265/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400", title: "Rave DJ Studio Set", views: "920K", size: "3.7 MB" },
-    { id: 'v8', category: 'dj', url: "https://cdn.coverr.co/videos/coverr-people-dancing-at-a-party-5267/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400", title: "Party Dancing Flash", views: "1.5M", size: "3.4 MB" },
+    { id: 'v5', ytId: "K4DyBUG242c", title: "Cartoon - On & On", views: "510M", category: "dj" },
+    { id: 'v6', ytId: "p7ZsBPK656s", title: "Alan Walker - Fade (BGM)", views: "480M", category: "dj" },
+    { id: 'v7', ytId: "J2X5mJ3HDYE", title: "Elektronomia - Sky High", views: "190M", category: "dj" },
+    { id: 'v8', ytId: "jK2aIUmmdP4", title: "Janji - Heroes Tonight", views: "22M", category: "dj" },
     
     // Neon / Synth
-    { id: 'v9', category: 'neon', url: "https://cdn.coverr.co/videos/coverr-neon-lights-in-the-city-4390/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1554284126-aa88f22d8b74?w=400", title: "Neon City Cyberpunk", views: "8.2M", size: "3.2 MB" },
-    { id: 'v10', category: 'neon', url: "https://cdn.coverr.co/videos/coverr-a-woman-with-neon-lights-4395/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1563298723-dcfebaa392e3?w=400", title: "Neon Portraits", views: "2.3M", size: "2.1 MB" },
-    { id: 'v11', category: 'neon', url: "https://cdn.coverr.co/videos/coverr-playing-electric-guitar-5249/1080p.mp4", thumbnail: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400", title: "Electric Guitar Solo", views: "4.5M", size: "2.8 MB" },
-    { id: 'v12', category: 'neon', url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604051080/skate.mp4", thumbnail: "https://images.unsplash.com/photo-1564982752979-3f7bc974d29a?w=400", title: "Urban Skate Aesthetic", views: "1.1M", size: "3.5 MB" },
+    { id: 'v9', ytId: "6FNHe3kf8_s", title: "Disfigure - Blank", views: "8.5M", category: "neon" },
+    { id: 'v10', ytId: "bM7SZ5SBzyY", title: "Alan Walker - Spectre", views: "3.2M", category: "neon" },
+    { id: 'v11', ytId: "AOeY-nDp7hI", title: "Different Heaven - My Heart", views: "1.1M", category: "neon" },
+    { id: 'v12', ytId: "n1ddqXIbpa8", title: "Deaf Kev - Invincible", views: "5.6M", category: "neon" },
     
-    // Nature / Vlogs
-    { id: 'v13', category: 'nature', url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604049877/marmots.mp4", thumbnail: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400", title: "Nature Wilderness BGM", views: "6.7M", size: "4.2 MB" },
-    { id: 'v14', category: 'nature', url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050220/elephants.mp4", thumbnail: "https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=400", title: "Safari Cinematic Drops", views: "3.2M", size: "3.1 MB" },
-    { id: 'v15', category: 'nature', url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050857/snowboarding.mp4", thumbnail: "https://images.unsplash.com/photo-1551524559-8af4e6624178?w=400", title: "Snowboard Extreme Status", views: "2.9M", size: "4.8 MB" }
+    // Nature / Cinematic
+    { id: 'v13', ytId: "iUZ1zWHJQnY", title: "Costa Rica 4K Cinematic", views: "6.7M", category: "nature" },
+    { id: 'v14', ytId: "LXb3EKWsInQ", title: "Wild Wildlife 4K", views: "3.2M", category: "nature" },
+    { id: 'v15', ytId: "vQryFsH_0-Q", title: "Cinematic Forest Drops", views: "9.8M", category: "nature" }
 ];
 
-const NativeVideoCard = ({ video, globalMute, setGlobalMute, isLast, lastVideoRef }) => {
-    const videoRef = useRef(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(false); 
+const YouTubeReel = ({ video, isActive, globalMute, toggleMute }) => {
+    const containerRef = useRef(null);
+    const playerRef = useRef(null);
+    const [isReady, setIsReady] = useState(false);
     const [hasError, setHasError] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
 
+    // Initialize Official YouTube Iframe API
     useEffect(() => {
-        if (videoRef.current) videoRef.current.muted = globalMute;
-    }, [globalMute]);
+        if (!window.YT || !window.YT.Player || playerRef.current) return;
 
-    useEffect(() => {
-        const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
-        const handleIntersection = (entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting && !hasError && videoRef.current) {
-                    videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-                } else if (videoRef.current) {
-                    videoRef.current.pause();
-                    setIsPlaying(false);
+        playerRef.current = new window.YT.Player(containerRef.current, {
+            videoId: video.ytId,
+            playerVars: {
+                autoplay: 0,
+                controls: 0,
+                disablekb: 1,
+                fs: 0,
+                rel: 0,
+                loop: 1,
+                playlist: video.ytId, // Required for loop to work
+                modestbranding: 1,
+                playsinline: 1,
+                mute: 1
+            },
+            events: {
+                onReady: (event) => {
+                    setIsReady(true);
+                    if (globalMute) event.target.mute();
+                    else event.target.unMute();
+                    
+                    if (isActive) {
+                        event.target.playVideo();
+                        setIsPlaying(true);
+                    }
+                },
+                onError: (event) => {
+                    console.error("YouTube Player Error:", event.data);
+                    setHasError(true);
+                    setIsReady(true); // Stop loading spinner
+                },
+                onStateChange: (event) => {
+                    if (event.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
+                    if (event.data === window.YT.PlayerState.PAUSED) setIsPlaying(false);
                 }
-            });
+            }
+        });
+
+        return () => {
+            if (playerRef.current && playerRef.current.destroy) {
+                playerRef.current.destroy();
+                playerRef.current = null;
+            }
         };
+    }, [video.ytId]);
 
-        const observer = new IntersectionObserver(handleIntersection, observerOptions);
-        if (videoRef.current) observer.observe(videoRef.current);
-        return () => observer.disconnect();
-    }, [hasError]);
+    // Handle Play/Pause based on scroll position (isActive)
+    useEffect(() => {
+        if (playerRef.current && isReady && !hasError && typeof playerRef.current.playVideo === 'function') {
+            if (isActive) {
+                playerRef.current.playVideo();
+            } else {
+                playerRef.current.pauseVideo();
+                setIsPlaying(false);
+            }
+        }
+    }, [isActive, isReady, hasError]);
 
-    const togglePlay = () => {
-        if (hasError || !videoRef.current) return;
+    // Handle Global Mute
+    useEffect(() => {
+        if (playerRef.current && isReady && !hasError && typeof playerRef.current.mute === 'function') {
+            if (globalMute) playerRef.current.mute();
+            else playerRef.current.unMute();
+        }
+    }, [globalMute, isReady, hasError]);
+
+    const handleScreenClick = () => {
+        if (hasError || !playerRef.current || !isReady) return;
         if (isPlaying) {
-            videoRef.current.pause();
-            setIsPlaying(false);
+            playerRef.current.pauseVideo();
         } else {
-            videoRef.current.play();
-            setIsPlaying(true);
+            playerRef.current.playVideo();
         }
     };
 
     return (
-        <div id={`vid-container-${video.id}`} ref={isLast ? lastVideoRef : null} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group overflow-hidden">
+        <div className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center overflow-hidden">
             
-            {/* Smooth Loading Spinner */}
-            {!isLoaded && !hasError && (
+            {!isReady && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                    <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin opacity-80"></div>
+                    <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin opacity-80"></div>
                 </div>
             )}
 
             {hasError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gray-900 text-gray-500">
-                    <span className="text-4xl mb-2">⚠️</span>
-                    <p className="text-sm font-semibold">Video Unavailable</p>
+                    <span className="text-4xl mb-2">🚫</span>
+                    <p className="text-sm font-semibold">Creator Restricted Embedding</p>
                 </div>
             )}
 
-            {/* RAW NATIVE MP4 STREAMING: No gray screens, perfectly smooth swiping */}
-            <video
-                ref={videoRef}
-                src={video.url}
-                className={`w-full h-full object-cover relative z-10 cursor-pointer transition-opacity duration-700 ease-in-out ${hasError ? 'hidden' : 'block'}`}
-                style={{ opacity: isLoaded ? 1 : 0 }}
-                loop
-                muted={globalMute}
-                playsInline
-                referrerPolicy="no-referrer"
-                onClick={togglePlay}
-                onLoadedData={() => setIsLoaded(true)} 
-                onError={() => { setIsLoaded(true); setHasError(true); }}
-            />
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden flex justify-center items-center bg-black">
+                {/* Using a wrapper to crop the 16:9 YouTube video into a TikTok style vertical frame. 
+                    pointer-events-none ensures our custom click handler works cleanly.
+                */}
+                <div 
+                    ref={containerRef} 
+                    className={`w-[350%] h-[150%] md:w-[120%] md:h-[120%] object-cover pointer-events-none transition-opacity duration-700 ${hasError ? 'opacity-0' : 'opacity-90'}`}
+                ></div>
+            </div>
 
-            {!isPlaying && isLoaded && !hasError && (
+            {/* Click overlay */}
+            <div className="absolute inset-0 z-10 cursor-pointer" onClick={handleScreenClick}></div>
+
+            {!isPlaying && isReady && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none drop-shadow-2xl">
                     <div className="bg-black/60 text-white rounded-full p-4 backdrop-blur-md flex items-center justify-center w-16 h-16 shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-white/10 animate-pulse">
-                        <span className="text-2xl ml-1">▶</span>
+                        <span className="text-2xl ml-1 text-red-500">▶</span>
                     </div>
                 </div>
             )}
 
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
-                <span className="bg-green-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider mb-2 inline-block shadow-md">
+                <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider mb-2 inline-block shadow-md">
                     {video.category}
                 </span>
                 <p className="font-bold text-lg drop-shadow-lg leading-tight">{video.title}</p>
             </div>
 
             <div className="absolute bottom-6 right-4 flex flex-col items-center gap-5 z-20">
-                <button onClick={(e) => { e.stopPropagation(); setGlobalMute(!globalMute); }} className="flex flex-col items-center gap-1 transition active:scale-90 mb-2">
+                <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="flex flex-col items-center gap-1 transition active:scale-90 mb-2">
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md shadow-lg text-lg border border-white/10 text-white">
                         {globalMute ? '🔇' : '🔊'}
                     </div>
@@ -136,111 +179,86 @@ const NativeVideoCard = ({ video, globalMute, setGlobalMute, isLast, lastVideoRe
 };
 
 const Status = () => {
+    const [ytApiLoaded, setYtApiLoaded] = useState(false);
     const [videos, setVideos] = useState([]);
     const [activeCategory, setActiveCategory] = useState('all');
     const [globalMute, setGlobalMute] = useState(true);
     const [selectedIndex, setSelectedIndex] = useState(null);
-    
-    // Pagination & Auto-Load State
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
-    const ITEMS_PER_PAGE = 4;
+    const [activeFeedIndex, setActiveFeedIndex] = useState(0);
 
-    const getFilteredDatabase = useCallback((category) => {
-        if (category === 'all') return DIRECT_MP4_DATABASE;
-        return DIRECT_MP4_DATABASE.filter(v => v.category === category);
+    // Global Initialization of YouTube API
+    useEffect(() => {
+        if (window.YT && window.YT.Player) {
+            setYtApiLoaded(true);
+            return;
+        }
+
+        window.onYouTubeIframeAPIReady = () => {
+            setYtApiLoaded(true);
+        };
+
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
     }, []);
 
-    // Initial Load on Category Change
     useEffect(() => {
-        const db = getFilteredDatabase(activeCategory);
-        setVideos(db.slice(0, ITEMS_PER_PAGE));
-        setPage(1);
-        setHasMore(db.length > ITEMS_PER_PAGE);
+        if (activeCategory === 'all') setVideos(YOUTUBE_SHORTS);
+        else setVideos(YOUTUBE_SHORTS.filter(v => v.category === activeCategory));
         setSelectedIndex(null);
-    }, [activeCategory, getFilteredDatabase]);
+    }, [activeCategory]);
 
-    // INFINITE SCROLL OPTIMIZATION: Fetches mathematically unique batches. NO REPEATS.
-    const loadMoreVideos = useCallback(() => {
-        if (isLoading || !hasMore) return;
-        setIsLoading(true);
-
-        setTimeout(() => {
-            const db = getFilteredDatabase(activeCategory);
-            const startIndex = page * ITEMS_PER_PAGE;
-            const endIndex = startIndex + ITEMS_PER_PAGE;
-            const nextBatch = db.slice(startIndex, endIndex);
-
-            if (nextBatch.length > 0) {
-                setVideos(prev => [...prev, ...nextBatch]);
-                setPage(prev => prev + 1);
-            }
-            
-            // If we hit the end of the database, STOP. Do not loop.
-            if (endIndex >= db.length) {
-                setHasMore(false);
-            }
-            
-            setIsLoading(false);
-        }, 500); 
-    }, [activeCategory, hasMore, isLoading, page, getFilteredDatabase]);
-
-    // AUTO-LOADER OBSERVER
-    const observerRef = useRef();
-    const lastElementRef = useCallback(node => {
-        if (isLoading || !hasMore) return;
-        if (observerRef.current) observerRef.current.disconnect();
+    // Precise Math-based Scroll Tracker for Autoplay
+    const handleScroll = (e) => {
+        const container = e.target;
+        const scrollPosition = container.scrollTop;
+        const windowHeight = container.clientHeight;
+        const currentIndex = Math.round(scrollPosition / windowHeight);
         
-        observerRef.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting) {
-                loadMoreVideos();
-            }
-        }, { threshold: 0.1 });
-        
-        if (node) observerRef.current.observe(node);
-    }, [isLoading, hasMore, loadMoreVideos]);
+        if (currentIndex !== activeFeedIndex) {
+            setActiveFeedIndex(currentIndex);
+        }
+    };
+
+    const toggleGlobalMute = () => setGlobalMute(!globalMute);
 
     if (selectedIndex !== null) {
         const playableQueue = videos.slice(selectedIndex);
 
         return (
             <div className="fixed inset-0 z-[100] bg-black flex justify-center overflow-hidden">
-                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-green-600 transition active:scale-95">
+                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-red-600 transition active:scale-95">
                     ← Back to Grid
                 </button>
 
-                <div className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative smooth-scroll">
-                    {playableQueue.map((video, index) => (
-                        <NativeVideoCard 
-                            key={video.id} 
-                            video={video} 
-                            globalMute={globalMute} 
-                            setGlobalMute={setGlobalMute} 
-                            isLast={playableQueue.length === index + 1}
-                            lastVideoRef={lastElementRef}
-                        />
-                    ))}
-                    
-                    {isLoading && hasMore && (
-                        <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center">
-                            <div className="flex items-center gap-2 text-green-500 font-bold">
-                                <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                                Loading unique feed...
-                            </div>
-                        </div>
-                    )}
-
-                    {/* GUARANTEED NO REPEATS: Explicitly tells the user the content is finished */}
-                    {!hasMore && (
+                {!ytApiLoaded ? (
+                    <div className="flex w-full h-full items-center justify-center text-red-500 font-bold">
+                        Initializing YouTube Engine...
+                    </div>
+                ) : (
+                    <div 
+                        onScroll={handleScroll}
+                        className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative smooth-scroll"
+                    >
+                        {playableQueue.map((video, index) => (
+                            <YouTubeReel 
+                                key={video.id} 
+                                video={video} 
+                                isActive={index === activeFeedIndex} 
+                                globalMute={globalMute} 
+                                toggleMute={toggleGlobalMute} 
+                            />
+                        ))}
+                        
                         <div className="w-full h-[25vh] snap-start bg-black flex flex-col items-center justify-center text-gray-500 text-sm font-bold gap-3">
-                            <span>You've caught up! ✅</span>
+                            <span>End of Feed. ✅</span>
                             <button onClick={() => setSelectedIndex(null)} className="bg-gray-800 text-white px-4 py-2 rounded-full hover:bg-gray-700 transition">
-                                Browse other categories
+                                Browse Categories
                             </button>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -254,7 +272,7 @@ const Status = () => {
                     <button 
                         key={cat.id} 
                         onClick={() => setActiveCategory(cat.id)} 
-                        className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-bold transition flex-shrink-0 border ${activeCategory === cat.id ? 'bg-green-600 text-white border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700'}`}
+                        className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-bold transition flex-shrink-0 border ${activeCategory === cat.id ? 'bg-red-600 text-white border-red-500 shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700'}`}
                     >
                         {cat.label}
                     </button>
@@ -265,16 +283,18 @@ const Status = () => {
                 {videos.map((video, index) => (
                     <div 
                         key={video.id} 
-                        ref={videos.length === index + 1 ? lastElementRef : null} 
-                        onClick={() => setSelectedIndex(index)}
+                        onClick={() => {
+                            setSelectedIndex(index);
+                            setActiveFeedIndex(0); // Reset scroll index tracker
+                        }}
                         className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-700 transition active:scale-[0.98] shadow-lg group flex flex-col border border-gray-700/50"
                     >
                         <div className="relative aspect-[3/4] w-full bg-gray-900 flex items-center justify-center overflow-hidden">
-                            <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" loading="lazy" />
+                            <img src={`https://i.ytimg.com/vi/${video.ytId}/hqdefault.jpg`} alt={video.title} className="w-[150%] h-[150%] object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500" loading="lazy" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                             
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="bg-green-600 text-white rounded-full p-3 shadow-[0_0_15px_rgba(34,197,94,0.8)] scale-90 group-hover:scale-100 transition-transform">
+                                <div className="bg-red-600 text-white rounded-full p-3 shadow-[0_0_15px_rgba(220,38,38,0.8)] scale-90 group-hover:scale-100 transition-transform">
                                     <span className="text-xl ml-1 block">▶</span>
                                 </div>
                             </div>
@@ -286,28 +306,13 @@ const Status = () => {
                         <div className="p-3 flex-1 flex flex-col justify-between bg-gradient-to-b from-gray-800 to-gray-900">
                             <h3 className="text-xs md:text-sm font-bold text-white line-clamp-2 mb-2 leading-snug">{video.title}</h3>
                             <div className="flex justify-between items-center text-[10px] md:text-xs text-gray-400 font-semibold">
-                                <span className="flex items-center gap-1 text-green-400 drop-shadow-md">▶ {video.views}</span>
-                                <span className="text-gray-500">{video.size}</span>
+                                <span className="flex items-center gap-1 text-red-400 drop-shadow-md">▶ {video.views}</span>
+                                <span className="text-gray-500">Official API</span>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
-
-            {isLoading && hasMore && (
-                <div className="flex justify-center items-center py-10 mt-4">
-                    <div className="flex items-center gap-2 text-green-500 font-bold">
-                        <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                        Generating Feed...
-                    </div>
-                </div>
-            )}
-
-            {!hasMore && (
-                <div className="mt-8 flex justify-center">
-                    <span className="text-gray-500 text-sm font-bold bg-gray-900 px-6 py-2 rounded-full border border-gray-800">You've seen all videos in this category. ✅</span>
-                </div>
-            )}
         </div>
     );
 };
