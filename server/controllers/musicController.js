@@ -42,12 +42,7 @@ const fetchFromSaavn = async (query) => {
                 throw new Error("Empty payload");
             })
     );
-
-    try {
-        return await Promise.any(promises);
-    } catch (err) {
-        return []; 
-    }
+    try { return await Promise.any(promises); } catch (err) { return []; }
 };
 
 const hybridFetch = async (itunesTracks, req) => {
@@ -107,26 +102,19 @@ const hybridFetch = async (itunesTracks, req) => {
     return results.filter(track => track !== null);
 };
 
-// UPGRADED: The Nursery Rhyme Purge applied to the data validator
 const processResults = (results, req, targetLang = 'all') => {
     if (!results || !Array.isArray(results)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return results.map(track => {
         const trackLang = String(track.language || (track.more_info && track.more_info.language) || "").toLowerCase();
-        
-        // Regional validation
         if (targetLang !== 'all' && targetLang !== 'english' && targetLang !== 'japanese') {
             if (!trackLang.includes(targetLang)) return null; 
         }
 
-        // STRICT PURGE: Eradicate children's albums and rhymes globally
         const tTitle = String(track.name || track.title || "").toLowerCase();
         const tAlbum = String(track.album?.name || track.album?.title || track.more_info?.album || "").toLowerCase();
-        
-        if (tTitle.includes('nursery') || tTitle.includes('rhymes') || tTitle.includes('kids') || tAlbum.includes('nursery') || tAlbum.includes('rhymes')) {
-            return null;
-        }
+        if (tTitle.includes('nursery') || tTitle.includes('rhymes') || tTitle.includes('kids') || tAlbum.includes('nursery') || tAlbum.includes('rhymes')) return null;
 
         const originalUrl = getFullLengthAudio(track);
         return {
@@ -138,7 +126,44 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-// Anime and Artist logic remains identical...
+// --- NEW BACKEND VIDEO SOURCE (MIXKIT CDN) ---
+// This permanently bypasses Pexels API limits and guarantees ultra-high quality music/neon status videos
+const getStatusVideos = async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 5;
+
+    const curatedVideos = [
+        { id: 'v1', url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4", title: "Neon City Aesthetic", author: "@CyberVibes" },
+        { id: 'v2', url: "https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-nightclub-43400-large.mp4", title: "Club DJ Set", author: "@RaveHouse" },
+        { id: 'v3', url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-video-of-a-man-with-neon-lights-42491-large.mp4", title: "Abstract Frequency", author: "@Visualizer" },
+        { id: 'v4', url: "https://assets.mixkit.co/videos/preview/mixkit-driving-in-the-rain-at-night-5434-large.mp4", title: "Late Night Lofi", author: "@MidnightDrives" },
+        { id: 'v5', url: "https://assets.mixkit.co/videos/preview/mixkit-crowd-dancing-in-a-nightclub-4351-large.mp4", title: "Festival Energy", author: "@LiveMusic" },
+        { id: 'v6', url: "https://assets.mixkit.co/videos/preview/mixkit-playing-a-bass-guitar-1111-large.mp4", title: "Bass Groove", author: "@StringsAttached" },
+        { id: 'v7', url: "https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-man-dancing-in-the-dark-42469-large.mp4", title: "Rhythm & Shadows", author: "@DanceEdits" },
+        { id: 'v8', url: "https://assets.mixkit.co/videos/preview/mixkit-young-woman-listening-to-music-on-headphones-42456-large.mp4", title: "Lost in the Track", author: "@Audiophile" },
+        { id: 'v9', url: "https://assets.mixkit.co/videos/preview/mixkit-cassette-playing-in-a-vintage-stereo-48332-large.mp4", title: "Retro Mixtape", author: "@VintageSounds" },
+        { id: 'v10', url: "https://assets.mixkit.co/videos/preview/mixkit-drummer-playing-drums-in-a-studio-43404-large.mp4", title: "Studio Sessions", author: "@BeatMaker" }
+    ];
+
+    // Mathematically loop the array infinitely for seamless scrolling
+    const startIndex = ((page - 1) * limit) % curatedVideos.length;
+    let paginatedData = [];
+    
+    for (let i = 0; i < limit; i++) {
+        const index = (startIndex + i) % curatedVideos.length;
+        paginatedData.push({
+            ...curatedVideos[index],
+            id: `${curatedVideos[index].id}-p${page}-i${i}`, 
+            likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`
+        });
+    }
+
+    // Simulate slight network delay to allow frontend skeletons to render smoothly
+    setTimeout(() => {
+        res.json({ success: true, data: paginatedData });
+    }, 400);
+};
+
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
@@ -170,18 +195,8 @@ const fetchTrending = async (req, res) => {
             const processed = await hybridFetch(itunesRes.data.feed.entry, req);
             return res.json({ success: true, data: deduplicateTracks(processed) });
         }
-        
-        // UPGRADED QUERIES: Safer parameters that avoid triggering children's albums
-        const trendingQueries = { 
-            'all': 'top+charts+india', 
-            'tamil': 'latest+tamil+hits', 
-            'hindi': 'latest+hindi+hits', 
-            'telugu': 'latest+telugu+hits', 
-            'malayalam': 'latest+malayalam+hits', 
-            'japanese': 'jpop+anime+hits' 
-        };
+        const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'latest+tamil+hits', 'hindi': 'latest+hindi+hits', 'telugu': 'latest+telugu+hits', 'malayalam': 'latest+malayalam+hits', 'japanese': 'jpop+anime+hits' };
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-        
         const raw = await fetchFromSaavn(`${queryParam}&limit=50`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
@@ -251,4 +266,5 @@ const downloadTrack = async (req, res) => {
     } catch (err) { res.status(500).send('Download failed'); }
 };
 
-module.exports = { fetchTrending, searchTracks, downloadTrack, streamTrack, getArtistPlaylist };
+// EXPORT THE NEW ROUTE
+module.exports = { fetchTrending, searchTracks, downloadTrack, streamTrack, getArtistPlaylist, getStatusVideos };
