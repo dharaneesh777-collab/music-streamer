@@ -5,8 +5,8 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false); 
+    const [hasError, setHasError] = useState(false); // NEW: Tracks dead videos
 
-    // UPGRADED: Force the React DOM to strictly sync the audio hardware to our globalMute state
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.muted = globalMute;
@@ -18,7 +18,7 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
         
         const handleIntersection = (entries) => {
             entries.forEach(entry => {
-                if (entry.isIntersecting) {
+                if (entry.isIntersecting && !hasError) {
                     videoRef.current?.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
                 } else {
                     videoRef.current?.pause();
@@ -31,9 +31,10 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
         if (videoRef.current) observer.observe(videoRef.current);
         
         return () => observer.disconnect();
-    }, []);
+    }, [hasError]);
 
     const togglePlay = () => {
+        if (hasError) return;
         if (isPlaying) {
             videoRef.current?.pause();
             setIsPlaying(false);
@@ -51,26 +52,37 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
     return (
         <div ref={isLastVideo ? lastVideoElementRef : null} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
             
-            {!isLoaded && (
+            {!isLoaded && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
                     <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin opacity-80"></div>
                 </div>
             )}
 
+            {/* UPGRADED: True Error UI state deployed if a network drop occurs */}
+            {hasError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gray-900 text-gray-500">
+                    <span className="text-4xl mb-2">⚠️</span>
+                    <p className="text-sm font-semibold">Video Unavailable</p>
+                </div>
+            )}
+
+            {/* CRITICAL FIX: Removed crossOrigin="anonymous" to bypass aggressive browser CORS blocks on media tags */}
             <video
                 ref={videoRef}
                 src={video.url}
-                className="w-full h-full object-cover relative z-10 cursor-pointer"
+                className={`w-full h-full object-cover relative z-10 cursor-pointer ${hasError ? 'hidden' : 'block'}`}
                 loop
                 muted={globalMute}
                 playsInline
-                crossOrigin="anonymous"
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
-                onError={() => setIsLoaded(true)} // UPGRADED: Immediately kills spinner if network drops
+                onError={() => {
+                    setIsLoaded(true);
+                    setHasError(true);
+                }}
             />
 
-            {!isPlaying && isLoaded && (
+            {!isPlaying && isLoaded && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none drop-shadow-2xl">
                     <div className="bg-black/60 text-white rounded-full p-4 backdrop-blur-md flex items-center justify-center w-16 h-16 shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-white/10">
                         <span className="text-2xl ml-1">▶</span>
@@ -78,7 +90,6 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 </div>
             )}
 
-            {/* UPGRADED UI: User names completely removed. Only pristine aesthetic titles remain. */}
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
                 <p className="font-bold text-lg drop-shadow-lg">{video.title}</p>
             </div>

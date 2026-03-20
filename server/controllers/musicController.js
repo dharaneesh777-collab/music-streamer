@@ -126,22 +126,22 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-// UPGRADED: Rock-solid Coverr CDN Links (No tokens, 1080p, Music Aesthetic)
+// UPGRADED: Rock-solid aesthetic mix. No crossOrigin limitations.
 const getStatusVideos = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = 5;
 
     const curatedVideos = [
-        { id: 'v1', url: "https://cdn.coverr.co/videos/coverr-dj-mixing-music-at-a-party-5264/1080p.mp4", title: "Club DJ Set" },
-        { id: 'v2', url: "https://cdn.coverr.co/videos/coverr-neon-lights-in-the-city-4390/1080p.mp4", title: "Neon City" },
-        { id: 'v3', url: "https://cdn.coverr.co/videos/coverr-a-beautiful-girl-listening-to-music-4089/1080p.mp4", title: "Lost in Music" },
-        { id: 'v4', url: "https://cdn.coverr.co/videos/coverr-driving-through-the-city-at-night-4228/1080p.mp4", title: "Night Drive Lofi" },
-        { id: 'v5', url: "https://cdn.coverr.co/videos/coverr-crowd-at-a-music-festival-5269/1080p.mp4", title: "Festival Energy" },
-        { id: 'v6', url: "https://cdn.coverr.co/videos/coverr-playing-electric-guitar-5249/1080p.mp4", title: "Electric Guitar" },
-        { id: 'v7', url: "https://cdn.coverr.co/videos/coverr-a-woman-with-neon-lights-4395/1080p.mp4", title: "Neon Portraits" },
-        { id: 'v8', url: "https://cdn.coverr.co/videos/coverr-playing-the-piano-in-a-studio-5244/1080p.mp4", title: "Studio Piano" },
-        { id: 'v9', url: "https://cdn.coverr.co/videos/coverr-dj-playing-music-5265/1080p.mp4", title: "Rave DJ" },
-        { id: 'v10', url: "https://cdn.coverr.co/videos/coverr-people-dancing-at-a-party-5267/1080p.mp4", title: "Party Dancing" }
+        { id: 'v1', url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4", title: "Neon City Aesthetic" },
+        { id: 'v2', url: "https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-nightclub-43400-large.mp4", title: "Club DJ Set" },
+        { id: 'v3', url: "https://cdn.coverr.co/videos/coverr-driving-through-the-city-at-night-4228/1080p.mp4", title: "Late Night Drive" },
+        { id: 'v4', url: "https://assets.mixkit.co/videos/preview/mixkit-crowd-dancing-in-a-nightclub-4351-large.mp4", title: "Festival Energy" },
+        { id: 'v5', url: "https://cdn.coverr.co/videos/coverr-a-beautiful-girl-listening-to-music-4089/1080p.mp4", title: "Lost in the Track" },
+        { id: 'v6', url: "https://assets.mixkit.co/videos/preview/mixkit-playing-a-bass-guitar-1111-large.mp4", title: "Bass Groove" },
+        { id: 'v7', url: "https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-man-dancing-in-the-dark-42469-large.mp4", title: "Rhythm & Shadows" },
+        { id: 'v8', url: "https://assets.mixkit.co/videos/preview/mixkit-drummer-playing-drums-in-a-studio-43404-large.mp4", title: "Studio Sessions" },
+        { id: 'v9', url: "https://cdn.coverr.co/videos/coverr-people-dancing-at-a-party-5267/1080p.mp4", title: "Party Vibes" },
+        { id: 'v10', url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-video-of-a-man-with-neon-lights-42491-large.mp4", title: "Abstract Frequency" }
     ];
 
     const startIndex = ((page - 1) * limit) % curatedVideos.length;
@@ -158,7 +158,7 @@ const getStatusVideos = async (req, res) => {
 
     setTimeout(() => {
         res.json({ success: true, data: paginatedData });
-    }, 400);
+    }, 300);
 };
 
 const getArtistPlaylist = async (req, res) => {
