@@ -5,7 +5,6 @@ import Player from './components/Player';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Playlists from './pages/Playlists';
-import Status from './pages/Status';
 import { PlayerProvider } from './context/PlayerContext';
 
 const BottomNav = () => {
@@ -86,8 +85,7 @@ function App() {
                         <Routes>
                             <Route path="/" element={<Home />} />
                             <Route path="/search" element={<Search />} />
-                            <Route path="/playlists" element={<Playlists />} />
-                            <Route path="/status" element={<Status />} />
+                            <Route path="/playlists" element={<Playlists />} />} />
                         </Routes>
                     </div>
                     
@@ -109,3 +107,4 @@ function App() {
 }
 
 export default App;
+
