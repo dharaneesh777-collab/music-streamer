@@ -33,18 +33,25 @@ const deduplicateTracks = (tracks) => {
     return uniqueTracks;
 };
 
+// UPGRADED: Proxy Racing Engine using Promise.any() for extreme speed
 const fetchFromSaavn = async (query) => {
-    for (const proxy of SAAVN_PROXIES) {
-        try {
-            const res = await axios.get(`${proxy}?query=${query}`, { timeout: 8000 });
-            const results = res.data?.data?.results || res.data?.results || (Array.isArray(res.data) ? res.data : []);
-            if (results.length > 0) return results;
-        } catch (err) { continue; }
+    const promises = SAAVN_PROXIES.map(proxy => 
+        axios.get(`${proxy}?query=${query}`, { timeout: 4500 }) // Tight timeout, fail fast
+            .then(res => {
+                const results = res.data?.data?.results || res.data?.results || (Array.isArray(res.data) ? res.data : []);
+                if (results.length > 0) return results;
+                throw new Error("Empty payload");
+            })
+    );
+
+    try {
+        // The fastest successful proxy wins the race instantly
+        return await Promise.any(promises);
+    } catch (err) {
+        return []; // Only returns empty if all 3 proxies fail simultaneously
     }
-    return [];
 };
 
-// UPGRADED HYBRID ENGINE: Mathematical Duration Matching & Junk Filtering
 const hybridFetch = async (itunesTracks, req) => {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const promises = itunesTracks.map(async (entry) => {
@@ -52,14 +59,13 @@ const hybridFetch = async (itunesTracks, req) => {
         const artist = entry.artistName || entry['im:artist']?.label;
         const cover = (entry.artworkUrl100 ? entry.artworkUrl100.replace('100x100bb', '300x300bb') : null) || (entry['im:image'] && entry['im:image'][2]?.label) || 'https://via.placeholder.com/300';
         
-        // Extract official Apple duration (in seconds) if available
         const targetDuration = entry.trackTimeMillis ? entry.trackTimeMillis / 1000 : null;
         const saavnQuery = `${title} ${artist}`.replace(/[^a-zA-Z0-9 ]/g, " ");
 
+        // We use sequential here specifically for audio matching to preserve precision
         for (const proxy of SAAVN_PROXIES) {
             try {
-                // Fetch top 6 to find the perfect studio match
-                const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=6`, { timeout: 5000 });
+                const saavnRes = await axios.get(`${proxy}?query=${encodeURIComponent(saavnQuery)}&limit=6`, { timeout: 4500 });
                 const saavnData = saavnRes.data?.data?.results || saavnRes.data?.results || [];
                 
                 if (saavnData.length > 0) {
@@ -71,21 +77,19 @@ const hybridFetch = async (itunesTracks, req) => {
                         const isCover = title.toLowerCase().includes('cover');
                         const isLive = title.toLowerCase().includes('live');
 
-                        // STRICT FILTER: Eradicate mismatched versions
                         if (!isCover && (tTitle.includes('cover') || tTitle.includes('tribute'))) continue;
                         if (!isLive && tTitle.includes('live')) continue;
                         if (tTitle.includes('instrumental') || tTitle.includes('karaoke') || tTitle.includes('commentary') || tTitle.includes('dialogue')) continue;
 
-                        // Match Duration Math
                         if (targetDuration && t.duration) {
                             const diff = Math.abs(t.duration - targetDuration);
                             if (diff < minDiff) { minDiff = diff; bestMatch = t; }
                         } else if (!bestMatch) {
-                            bestMatch = t; // Fallback
+                            bestMatch = t;
                         }
                     }
 
-                    if (!bestMatch) bestMatch = saavnData[0]; // Absolute fallback
+                    if (!bestMatch) bestMatch = saavnData[0]; 
 
                     const originalUrl = getFullLengthAudio(bestMatch);
                     if (originalUrl) {
@@ -158,7 +162,9 @@ const fetchTrending = async (req, res) => {
         }
         const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'tamil+top+50', 'hindi': 'hindi+top+50', 'telugu': 'telugu+top+50', 'malayalam': 'malayalam+top+50', 'japanese': 'jpop+anime+hits' };
         const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-        const raw = await fetchFromSaavn(`${queryParam}&limit=100`);
+        
+        // UPGRADED: Reduced limit from 100 to 50 for faster initial parsing
+        const raw = await fetchFromSaavn(`${queryParam}&limit=50`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, lang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
@@ -174,27 +180,28 @@ const searchTracks = async (req, res) => {
             return res.json({ success: true, data: deduplicateTracks(processed) });
         }
         if (type === 'albums') {
-            for (const proxy of ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums']) {
-                try {
-                    const resProxy = await axios.get(`${proxy}?query=${encodeURIComponent(q)}`);
-                    let results = resProxy.data?.data?.results || resProxy.data?.results || [];
-                    const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
-                    const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
-                    if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
-                } catch(e) {}
-            }
+            const promises = ['https://saavn.sumit.co/api/search/albums', 'https://saavn.dev/api/search/albums'].map(proxy => 
+                axios.get(`${proxy}?query=${encodeURIComponent(q)}`, { timeout: 4500 }).then(res => res.data?.data?.results || res.data?.results || [])
+            );
+            try {
+                const results = await Promise.any(promises);
+                const formatted = results.map(a => ({ id: a.id, title: a.name || a.title, artist: a.language || 'Official Soundtrack', cover: getHighQualityImage(a), isAlbum: true, language: a.language }));
+                const filteredAlbums = formatted.filter(a => targetLang === 'all' || targetLang === 'japanese' || !a.language || String(a.language).toLowerCase() === targetLang);
+                if(filteredAlbums.length > 0) return res.json({ success: true, data: filteredAlbums });
+            } catch(e) {}
             return res.json({ success: true, data: [] });
         }
         if (type === 'albumDetails') {
-            for (const proxy of ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id=']) {
-                try {
-                    const resProxy = await axios.get(`${proxy}${id}`);
-                    let songs = resProxy.data?.data?.songs || resProxy.data?.songs || [];
-                    if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req, 'all')) });
-                } catch(e) {}
-            }
+            const promises = ['https://saavn.sumit.co/api/albums?id=', 'https://saavn.dev/api/albums?id='].map(proxy => 
+                axios.get(`${proxy}${id}`, { timeout: 4500 }).then(res => res.data?.data?.songs || res.data?.songs || [])
+            );
+            try {
+                const songs = await Promise.any(promises);
+                if(songs.length > 0) return res.json({ success: true, data: deduplicateTracks(processResults(songs, req, 'all')) });
+            } catch (e) {}
             return res.json({ success: true, data: [] });
         }
+        
         const raw = await fetchFromSaavn(`${encodeURIComponent(q)}&limit=100`);
         res.json({ success: true, data: deduplicateTracks(processResults(raw, req, targetLang)) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }

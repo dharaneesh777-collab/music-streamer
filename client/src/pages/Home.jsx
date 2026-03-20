@@ -8,28 +8,40 @@ const LANGUAGES = ['All', 'English', 'Tamil', 'Hindi', 'Telugu', 'Malayalam'];
 const Home = () => {
     const [trending, setTrending] = useState([]);
     const [activeLang, setActiveLang] = useState(localStorage.getItem('preferred_lang') || 'All');
-    const [loading, setLoading] = useState(true); // NEW: Dedicated loading state
+    const [loading, setLoading] = useState(true); 
     const [error, setError] = useState(null);
     const { playTrack } = useContext(PlayerContext);
 
     useEffect(() => {
         localStorage.setItem('preferred_lang', activeLang);
-        setTrending([]);
-        setLoading(true); // Start loading animation immediately
         setError(null);
 
+        // UPGRADED: Caching Layer to instantly render UI while bypassing cold starts
+        const cacheKey = `streamer_cache_${activeLang}`;
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            setTrending(JSON.parse(cachedData));
+            setLoading(false); // Disable loading animation instantly
+        } else {
+            setTrending([]);
+            setLoading(true);
+        }
+
+        // Silent background network fetch (Stale-While-Revalidate pattern)
         fetch(`${API_BASE_URL}/api/trending?lang=${activeLang}`)
             .then(res => res.json())
             .then(data => {
                 if (data && data.success) {
                     setTrending(data.data);
-                } else {
+                    sessionStorage.setItem(cacheKey, JSON.stringify(data.data)); // Update cache quietly
+                } else if (!cachedData) {
                     setError("Failed to load tracks.");
                 }
-                setLoading(false); // Stop loading animation
+                setLoading(false); 
             })
             .catch(err => {
-                setError("Network error connecting to backend.");
+                if (!cachedData) setError("Network error connecting to backend.");
                 setLoading(false);
             });
     }, [activeLang]);
@@ -48,7 +60,6 @@ const Home = () => {
 
             {error && <div className="text-red-400 mb-6 bg-red-900/20 p-4 rounded text-sm">{error}</div>}
             
-            {/* UPGRADED: Smart UI messaging */}
             {loading && !error && <p className="text-gray-400 text-sm animate-pulse">Loading charts...</p>}
             {!loading && trending.length === 0 && !error && <p className="text-gray-400 text-sm">No specific hits found for this language at the moment.</p>}
             
@@ -56,7 +67,7 @@ const Home = () => {
                 {trending.map(track => (
                     <div key={track.id} className="bg-gray-800 p-3 rounded-lg cursor-pointer hover:bg-gray-700 transition active:scale-[0.98]" onClick={() => playTrack(track, trending)}>
                         <div className="relative mb-3">
-                            <img src={track.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-lg" />
+                            <img src={track.cover} alt="cover" className="w-full aspect-square object-cover rounded shadow-lg" loading="lazy" />
                         </div>
                         <h3 className="text-[11px] md:text-sm font-semibold truncate">{cleanText(track.title)}</h3>
                         <p className="text-[9px] md:text-xs text-gray-400 truncate">{cleanText(track.artist)}</p>
