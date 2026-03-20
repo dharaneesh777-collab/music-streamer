@@ -1,40 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react';
-
-// CRITICAL VIDEO FIX: Using Cloudinary's Developer Demo CDN. 
-// These URLs are guaranteed by Cloudinary to never expire and never block CORS.
-// The w_720,h_1280,c_fill parameter forces their cloud to crop the video into a vertical TikTok format instantly.
-const BULLETPROOF_VIDEOS = [
-    { 
-        id: 'v1', 
-        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604051080/skate.mp4", 
-        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604051080/skate.jpg", 
-        title: "Urban Skate Aesthetic", views: "124K", size: "3.2 MB" 
-    },
-    { 
-        id: 'v2', 
-        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050857/snowboarding.mp4", 
-        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050857/snowboarding.jpg", 
-        title: "Snowboard Extreme Status", views: "504K", size: "4.8 MB" 
-    },
-    { 
-        id: 'v3', 
-        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604049877/marmots.mp4", 
-        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604049877/marmots.jpg", 
-        title: "Nature Wilderness BGM", views: "92K", size: "3.0 MB" 
-    },
-    { 
-        id: 'v4', 
-        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050220/elephants.mp4", 
-        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050220/elephants.jpg", 
-        title: "Safari Cinematic Drops", views: "45K", size: "1.9 MB" 
-    },
-    { 
-        id: 'v5', 
-        url: "https://res.cloudinary.com/demo/video/upload/w_720,h_1280,c_fill/v1604050165/dog.mp4", 
-        thumbnail: "https://res.cloudinary.com/demo/video/upload/w_400,h_600,c_fill/v1604050165/dog.jpg", 
-        title: "Morning Vibes Lofi", views: "330K", size: "5.5 MB" 
-    }
-];
+import { API_BASE_URL } from '../config';
 
 const VideoCard = ({ video, globalMute, setGlobalMute }) => {
     const videoRef = useRef(null);
@@ -99,6 +64,7 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                 muted={globalMute}
                 playsInline
                 preload="metadata"
+                referrerPolicy="no-referrer"
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
                 onError={() => { setIsLoaded(true); setHasError(true); }}
@@ -126,6 +92,10 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-pink-500/80 shadow-lg text-lg border border-white/10">❤️</div>
                     <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">{video.views}</span>
                 </button>
+                <button className="flex flex-col items-center gap-1 transition active:scale-90">
+                    <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-blue-500/80 shadow-lg text-lg border border-white/10">⬇️</div>
+                    <span className="text-[10px] text-white font-semibold shadow-black drop-shadow-md">Save</span>
+                </button>
             </div>
         </div>
     );
@@ -133,19 +103,44 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
 
 const Status = () => {
     const [videos, setVideos] = useState([]);
+    const [page, setPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [globalMute, setGlobalMute] = useState(true);
     const [selectedIndex, setSelectedIndex] = useState(null);
 
+    // DYNAMIC ENGINE: Fetches JSON data from the backend, mapping raw unblocked URLs
+    const fetchVideos = async (pageNum) => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/status?page=${pageNum}`);
+            if (!response.ok) throw new Error("Backend connection failed");
+            const data = await response.json();
+            
+            if (data.success && data.data.length > 0) {
+                setVideos(prev => {
+                    // Prevent duplicates in React StrictMode
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newVids = data.data.filter(v => !existingIds.has(v.id));
+                    return [...prev, ...newVids];
+                });
+            }
+        } catch (err) {
+            setError(err.message);
+        }
+        setIsLoading(false);
+    };
+
+    // Load initial batch
     useEffect(() => {
-        setVideos(BULLETPROOF_VIDEOS);
+        fetchVideos(1);
     }, []);
 
+    // Load subsequent pages when user clicks the button
     const loadMoreVideos = () => {
-        const nextBatch = BULLETPROOF_VIDEOS.map((v, index) => ({
-            ...v,
-            id: `v-${Date.now()}-${index}`
-        }));
-        setVideos(prev => [...prev, ...nextBatch]);
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchVideos(nextPage);
     };
 
     if (selectedIndex !== null) {
@@ -162,8 +157,8 @@ const Status = () => {
                         <VideoCard key={video.id} video={video} globalMute={globalMute} setGlobalMute={setGlobalMute} />
                     ))}
                     <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center">
-                        <button onClick={loadMoreVideos} className="text-green-500 font-bold border border-green-500 px-6 py-2 rounded-full hover:bg-green-900/30 transition">
-                            Load More Videos ↓
+                        <button onClick={loadMoreVideos} disabled={isLoading} className="text-green-500 font-bold border border-green-500 px-6 py-2 rounded-full hover:bg-green-900/30 transition disabled:opacity-50">
+                            {isLoading ? 'Fetching New Edits...' : 'Load More Videos ↓'}
                         </button>
                     </div>
                 </div>
@@ -174,6 +169,12 @@ const Status = () => {
     return (
         <div className="p-4 md:p-8 pb-32">
             <h1 className="text-2xl md:text-3xl font-bold mb-6">Status Video Downloads</h1>
+
+            {error && videos.length === 0 && (
+                <div className="text-red-400 p-4 bg-red-900/20 rounded-md mb-6 border border-red-800">
+                    ⚠️ {error}
+                </div>
+            )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5">
                 {videos.map((video, index) => (
@@ -207,9 +208,10 @@ const Status = () => {
             <div className="mt-8 flex justify-center">
                 <button 
                     onClick={loadMoreVideos}
-                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95"
+                    disabled={isLoading}
+                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95 disabled:opacity-50"
                 >
-                    Load More Status Videos
+                    {isLoading ? 'Loading Feed...' : 'Load More Status Videos'}
                 </button>
             </div>
         </div>
