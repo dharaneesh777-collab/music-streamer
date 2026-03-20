@@ -1,5 +1,68 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react';
-import { API_BASE_URL } from '../config';
+﻿import { useEffect, useRef, useState } from 'react';
+
+// THE SERVERLESS VAULT: Raw AWS CloudFront Links (Zero CORS Blocks, Zero Backend Dependency)
+const AESTHETIC_VIDEOS = [
+    { 
+        id: 'v1', 
+        url: "https://videos.pexels.com/video-files/5377684/5377684-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/5377308/pexels-photo-5377308.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Neon City Cyberpunk Status", views: "124K", size: "3.2 MB" 
+    },
+    { 
+        id: 'v2', 
+        url: "https://videos.pexels.com/video-files/4149231/4149231-hd_1080_1920_30fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/4149231/pexels-photo-4149231.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Club DJ Bass Boosted", views: "504K", size: "4.8 MB" 
+    },
+    { 
+        id: 'v3', 
+        url: "https://videos.pexels.com/video-files/5192077/5192077-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/5192077/pexels-photo-5192077.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Late Night Drive Lofi", views: "92K", size: "3.0 MB" 
+    },
+    { 
+        id: 'v4', 
+        url: "https://videos.pexels.com/video-files/4012053/4012053-hd_1080_1920_30fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/4012053/pexels-photo-4012053.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Concert Crowd Energy", views: "45K", size: "1.9 MB" 
+    },
+    { 
+        id: 'v5', 
+        url: "https://videos.pexels.com/video-files/5191924/5191924-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/5191924/pexels-photo-5191924.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Night Rain Aesthetic", views: "330K", size: "5.5 MB" 
+    },
+    { 
+        id: 'v6', 
+        url: "https://videos.pexels.com/video-files/3253735/3253735-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/3253735/pexels-photo-3253735.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Abstract Frequency Visuals", views: "76K", size: "2.1 MB" 
+    },
+    { 
+        id: 'v7', 
+        url: "https://videos.pexels.com/video-files/4057322/4057322-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/4057322/pexels-photo-4057322.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Lofi Room Chill Vibes", views: "201K", size: "3.4 MB" 
+    },
+    { 
+        id: 'v8', 
+        url: "https://videos.pexels.com/video-files/4148149/4148149-hd_1080_1920_30fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/4148149/pexels-photo-4148149.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Studio Guitar Solo", views: "210K", size: "4.1 MB" 
+    },
+    { 
+        id: 'v9', 
+        url: "https://videos.pexels.com/video-files/3255275/3255275-hd_1080_1920_25fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/3255275/pexels-photo-3255275.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Party Dancing Flash", views: "112K", size: "3.7 MB" 
+    },
+    { 
+        id: 'v10', 
+        url: "https://videos.pexels.com/video-files/2792370/2792370-hd_1080_1920_30fps.mp4", 
+        thumbnail: "https://images.pexels.com/photos/2792370/pexels-photo-2792370.jpeg?auto=compress&cs=tinysrgb&w=400", 
+        title: "Melancholy Walk Sad Status", views: "124K", size: "3.2 MB" 
+    }
+];
 
 const VideoCard = ({ video, globalMute, setGlobalMute }) => {
     const videoRef = useRef(null);
@@ -52,14 +115,14 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
             {hasError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gray-900 text-gray-500">
                     <span className="text-4xl mb-2">⚠️</span>
-                    <p className="text-sm font-semibold">Video Proxy Failed</p>
+                    <p className="text-sm font-semibold">Video Stream Unavailable</p>
                 </div>
             )}
 
-            {/* CRITICAL: Video is routed through our bulletproof native TCP backend proxy */}
+            {/* CRITICAL FIX: Pure HTML5 Native Streaming directly from the CDN */}
             <video
                 ref={videoRef}
-                src={`${API_BASE_URL}/api/stream?url=${encodeURIComponent(video.url)}`}
+                src={video.url}
                 className={`w-full h-full object-cover relative z-10 cursor-pointer ${hasError ? 'hidden' : 'block'}`}
                 loop
                 muted={globalMute}
@@ -91,6 +154,10 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
                     <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-pink-500/80 shadow-lg text-lg border border-white/10">❤️</div>
                     <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">{video.views}</span>
                 </button>
+                <button className="flex flex-col items-center gap-1 transition active:scale-90">
+                    <div className="bg-gray-800/80 p-3 rounded-full backdrop-blur-md hover:bg-blue-500/80 shadow-lg text-lg border border-white/10">💬</div>
+                    <span className="text-xs text-white font-semibold shadow-black drop-shadow-md">Share</span>
+                </button>
             </div>
         </div>
     );
@@ -98,67 +165,51 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
 
 const Status = () => {
     const [videos, setVideos] = useState([]);
-    const [page, setPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
     const [globalMute, setGlobalMute] = useState(true);
-    
-    // UI View Controller
     const [selectedIndex, setSelectedIndex] = useState(null);
 
-    const fetchVideos = async (pageNum) => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/status?page=${pageNum}`);
-            if (!response.ok) throw new Error("Backend connection failed");
-            const data = await response.json();
-            
-            if (data.success && data.data.length > 0) {
-                setVideos(prev => {
-                    const existingIds = new Set(prev.map(p => p.id));
-                    const newVids = data.data.filter(v => !existingIds.has(v.id));
-                    return [...prev, ...newVids];
-                });
-            }
-        } catch (err) { setError(err.message); }
-        setIsLoading(false);
+    // SERVERLESS ARCHITECTURE: Instantly loads the grid from the local array
+    useEffect(() => {
+        setVideos(AESTHETIC_VIDEOS);
+    }, []);
+
+    // INFINITE SCROLL: Appends the same array to itself to create an endless loop of videos
+    const loadMoreVideos = () => {
+        const nextBatch = AESTHETIC_VIDEOS.map((v, index) => ({
+            ...v,
+            id: `v-${Date.now()}-${index}`
+        }));
+        setVideos(prev => [...prev, ...nextBatch]);
     };
 
-    useEffect(() => { fetchVideos(page); }, [page]);
-
-    // FULLSCREEN PLAYER VIEW
+    // UI VIEW 1: Immersive Player View
     if (selectedIndex !== null) {
         const playableQueue = videos.slice(selectedIndex);
 
         return (
             <div className="fixed inset-0 z-[100] bg-black flex justify-center overflow-hidden">
-                
-                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-gray-800 transition">
-                    ← Back to Selection
+                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-gray-800 transition active:scale-95">
+                    ← Back to Grid
                 </button>
 
                 <div className="w-full max-w-md h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide relative">
                     {playableQueue.map((video) => (
                         <VideoCard key={video.id} video={video} globalMute={globalMute} setGlobalMute={setGlobalMute} />
                     ))}
-                    <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center text-gray-600 text-sm font-bold">
-                        End of current queue. Go back to browse more.
+                    <div className="w-full h-[15vh] snap-start bg-black flex items-center justify-center">
+                        <button onClick={loadMoreVideos} className="text-green-500 font-bold border border-green-500 px-6 py-2 rounded-full hover:bg-green-900/30 transition">
+                            Load More Videos ↓
+                        </button>
                     </div>
                 </div>
             </div>
         );
     }
 
-    // KKONLINE STYLE GRID VIEW
+    // UI VIEW 2: KKOnline Style Selection Grid
     return (
         <div className="p-4 md:p-8 pb-32">
-            <h1 className="text-2xl md:text-3xl font-bold mb-6">Trending Status Downloads</h1>
-            
-            {error && videos.length === 0 && (
-                <div className="text-red-400 p-4 bg-red-900/20 rounded-md mb-6 border border-red-800">
-                    ⚠️ {error}
-                </div>
-            )}
+            <h1 className="text-2xl md:text-3xl font-bold mb-6">Status Video Downloads</h1>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5">
                 {videos.map((video, index) => (
@@ -191,11 +242,10 @@ const Status = () => {
 
             <div className="mt-8 flex justify-center">
                 <button 
-                    onClick={() => setPage(p => p + 1)}
-                    disabled={isLoading}
-                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95 disabled:opacity-50"
+                    onClick={loadMoreVideos}
+                    className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-full border border-gray-700 transition active:scale-95"
                 >
-                    {isLoading ? 'Loading...' : 'Load More Status'}
+                    Load More Status Videos
                 </button>
             </div>
         </div>
