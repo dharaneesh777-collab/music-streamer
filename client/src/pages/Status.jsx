@@ -52,18 +52,22 @@ const VideoCard = ({ video, globalMute, setGlobalMute }) => {
             {hasError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-gray-900 text-gray-500">
                     <span className="text-4xl mb-2">⚠️</span>
-                    <p className="text-sm font-semibold">Server Proxy Blocked</p>
+                    <p className="text-sm font-semibold">Video Stream Unavailable</p>
                 </div>
             )}
 
-            {/* CRITICAL FIX: The Video SRC is piped directly through our Express Backend Proxy */}
+            {/* CRITICAL ARCHITECTURE FIX: 
+                1. Removed the /api/stream wrapper. Video streams directly from CDN. 
+                2. Added referrerPolicy="no-referrer" to mathematically bypass CDN hotlink blocks.
+            */}
             <video
                 ref={videoRef}
-                src={`${API_BASE_URL}/api/stream?url=${encodeURIComponent(video.url)}`}
+                src={video.url}
                 className={`w-full h-full object-cover relative z-10 cursor-pointer ${hasError ? 'hidden' : 'block'}`}
                 loop
                 muted={globalMute}
                 playsInline
+                referrerPolicy="no-referrer"
                 onClick={togglePlay}
                 onLoadedData={() => setIsLoaded(true)} 
                 onError={() => { setIsLoaded(true); setHasError(true); }}
@@ -102,8 +106,6 @@ const Status = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [globalMute, setGlobalMute] = useState(true);
-    
-    // NEW: UI State Controller (Grid View vs Fullscreen Player View)
     const [selectedIndex, setSelectedIndex] = useState(null);
 
     const fetchVideos = async (pageNum) => {
@@ -126,16 +128,13 @@ const Status = () => {
 
     useEffect(() => { fetchVideos(page); }, [page]);
 
-    // UI VIEW 1: The Fullscreen Immersive Player
+    // UI VIEW 1: Immersive Player
     if (selectedIndex !== null) {
-        // Slice the array so the player starts precisely at the video you clicked
         const playableQueue = videos.slice(selectedIndex);
 
         return (
             <div className="fixed inset-0 z-[100] bg-black flex justify-center overflow-hidden">
-                
-                {/* Back Button */}
-                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-gray-800 transition">
+                <button onClick={() => setSelectedIndex(null)} className="absolute top-4 left-4 z-[110] bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-white/20 shadow-lg font-bold text-sm hover:bg-gray-800 transition active:scale-95">
                     ← Back to Grid
                 </button>
 
@@ -151,7 +150,7 @@ const Status = () => {
         );
     }
 
-    // UI VIEW 2: The KKOnline.in Style Selection Grid
+    // UI VIEW 2: Selection Grid
     return (
         <div className="p-4 md:p-8 pb-32">
             <h1 className="text-2xl md:text-3xl font-bold mb-6">Status Video Downloads</h1>
@@ -171,9 +170,7 @@ const Status = () => {
                     >
                         <div className="relative aspect-[3/4] w-full">
                             <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition duration-300" loading="lazy" />
-                            
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                 <div className="bg-green-500 text-white rounded-full p-3 shadow-[0_0_15px_rgba(34,197,94,0.6)]">
                                     <span className="text-xl ml-1 block">▶</span>
@@ -192,7 +189,6 @@ const Status = () => {
                 ))}
             </div>
 
-            {/* Load More Button */}
             <div className="mt-8 flex justify-center">
                 <button 
                     onClick={() => setPage(p => p + 1)}
