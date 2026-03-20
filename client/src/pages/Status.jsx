@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../config';
 const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlobalMute }) => {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(false); // UPGRADED: Tracks actual video buffer state
+    const [isLoaded, setIsLoaded] = useState(false); 
 
     useEffect(() => {
         const observerOptions = { root: null, rootMargin: '0px', threshold: 0.6 };
@@ -44,7 +44,6 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
     return (
         <div ref={isLastVideo ? lastVideoElementRef : null} className="w-full h-full snap-start snap-always relative bg-gray-950 flex items-center justify-center group">
             
-            {/* UPGRADED: Spinner disappears exactly when video finishes buffering */}
             {!isLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
                     <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin opacity-80"></div>
@@ -59,8 +58,9 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 muted={globalMute}
                 playsInline
                 crossOrigin="anonymous"
+                referrerPolicy="no-referrer" // THE STEALTH BYPASS: Allows Mixkit videos to stream flawlessly
                 onClick={togglePlay}
-                onLoadedData={() => setIsLoaded(true)} // Signal that buffering is complete
+                onLoadedData={() => setIsLoaded(true)} 
             />
 
             {!isPlaying && isLoaded && (
@@ -71,7 +71,6 @@ const VideoCard = ({ video, isLastVideo, lastVideoElementRef, globalMute, setGlo
                 </div>
             )}
 
-            {/* UPGRADED: Author tag removed for cleaner UI */}
             <div className="absolute bottom-6 left-4 right-16 text-white z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-xl pointer-events-none">
                 <p className="font-bold text-lg">{video.title}</p>
             </div>

@@ -126,22 +126,22 @@ const processResults = (results, req, targetLang = 'all') => {
     }).filter(track => track !== null && track.audioUrl);
 };
 
-// UPGRADED: Rock-solid Google Cloud Storage URLs that will never be blocked by CORS
+// UPGRADED: Restored the highly aesthetic Mixkit videos
 const getStatusVideos = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = 5;
 
     const curatedVideos = [
-        { id: 'v1', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", title: "Cinematic Escapes" },
-        { id: 'v2', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", title: "Sci-Fi Vibes" },
-        { id: 'v3', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4", title: "Action Sequence" },
-        { id: 'v4', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4", title: "Fantasy World" },
-        { id: 'v5', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", title: "Animation Highlight" },
-        { id: 'v6', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4", title: "Urban Escape" },
-        { id: 'v7', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4", title: "Neon Nights" },
-        { id: 'v8', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4", title: "Late Night Drive" },
-        { id: 'v9', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4", title: "Intense Drama" },
-        { id: 'v10', url: "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4", title: "Offroad Adventure" }
+        { id: 'v1', url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4", title: "Neon City Aesthetic" },
+        { id: 'v2', url: "https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-nightclub-43400-large.mp4", title: "Club DJ Set" },
+        { id: 'v3', url: "https://assets.mixkit.co/videos/preview/mixkit-abstract-video-of-a-man-with-neon-lights-42491-large.mp4", title: "Abstract Frequency" },
+        { id: 'v4', url: "https://assets.mixkit.co/videos/preview/mixkit-driving-in-the-rain-at-night-5434-large.mp4", title: "Late Night Lofi" },
+        { id: 'v5', url: "https://assets.mixkit.co/videos/preview/mixkit-crowd-dancing-in-a-nightclub-4351-large.mp4", title: "Festival Energy" },
+        { id: 'v6', url: "https://assets.mixkit.co/videos/preview/mixkit-playing-a-bass-guitar-1111-large.mp4", title: "Bass Groove" },
+        { id: 'v7', url: "https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-man-dancing-in-the-dark-42469-large.mp4", title: "Rhythm & Shadows" },
+        { id: 'v8', url: "https://assets.mixkit.co/videos/preview/mixkit-young-woman-listening-to-music-on-headphones-42456-large.mp4", title: "Lost in the Track" },
+        { id: 'v9', url: "https://assets.mixkit.co/videos/preview/mixkit-cassette-playing-in-a-vintage-stereo-48332-large.mp4", title: "Retro Mixtape" },
+        { id: 'v10', url: "https://assets.mixkit.co/videos/preview/mixkit-drummer-playing-drums-in-a-studio-43404-large.mp4", title: "Studio Sessions" }
     ];
 
     const startIndex = ((page - 1) * limit) % curatedVideos.length;
