@@ -1,15 +1,15 @@
 ﻿const axios = require('axios');
 
-// IN-MEMORY CACHE (Hyper-Optimization)
+// IN-MEMORY CACHE
 const cache = { trending: {}, search: {} };
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
-// THE PROVEN PROXY POOL (The "Yesterday" Approach)
+// THE PROVEN PROXY POOL
 const SAAVN_PROXIES = [
     'https://saavn.dev/api/search/songs',
-    'https://saavn.sumit.co/api/search/songs',
     'https://jiosaavn-api-privatecvc2.vercel.app/search/songs',
-    'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'
+    'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs',
+    'https://saavn.sumit.co/api/search/songs'
 ];
 
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
@@ -20,7 +20,7 @@ const getFullLengthAudio = (track) => {
         const hq = downloadUrls.find(u => u.quality === '320kbps') || downloadUrls.find(u => u.quality === '160kbps') || downloadUrls[downloadUrls.length - 1];
         return hq.url || hq.link || hq;
     }
-    const directUrl = track.media_url || track.url || track.downloadUrl;
+    const directUrl = track.media_url || track.url || track.downloadUrl || track.vlink;
     if (typeof directUrl === 'string' && directUrl.startsWith('http') && !directUrl.includes('preview')) return directUrl;
     return null; 
 };
@@ -44,19 +44,21 @@ const deduplicateTracks = (tracks) => {
     return uniqueTracks;
 };
 
-// THE RACING ENGINE: Fires all proxies simultaneously. First to answer wins.
 const fetchFromSaavn = async (query) => {
+    // CRITICAL FIX: 6000ms timeout explicitly allows Vercel cold-start proxies to wake up without failing
     const promises = SAAVN_PROXIES.map(proxy => 
-        axios.get(`${proxy}?query=${encodeURIComponent(query)}&limit=50`, { timeout: 3500 })
+        axios.get(`${proxy}?query=${encodeURIComponent(query)}&limit=40`, { timeout: 6000 })
             .then(res => {
+                // HYPER-RESILIENT EXTRACTION: Survives unannounced API structure changes
                 const data = res.data?.data?.results || res.data?.results || res.data?.data || res.data;
                 if (Array.isArray(data) && data.length > 0) return data;
-                throw new Error("Invalid payload");
+                throw new Error("Invalid or empty payload");
             })
     );
     try { 
         return await Promise.any(promises); 
     } catch (err) { 
+        console.error("Proxy race failed for query:", query);
         return []; 
     }
 };
@@ -68,7 +70,6 @@ const processResults = (rawTracks, req, targetLang = 'all') => {
     return rawTracks.map(track => {
         const trackLang = String(track.language || track.more_info?.language || "").toLowerCase();
         
-        // Strict Language Guard to prevent Hindi bleed in English tab
         if (targetLang !== 'all' && targetLang !== 'japanese' && trackLang) {
             if (!trackLang.includes(targetLang)) return null; 
         }
@@ -76,7 +77,7 @@ const processResults = (rawTracks, req, targetLang = 'all') => {
         const originalUrl = getFullLengthAudio(track);
         return {
             id: track.id || Math.random().toString(),
-            title: track.name || track.title, 
+            title: track.name || track.title || 'Unknown Title', 
             artist: track.artists?.primary?.[0]?.name || track.primaryArtists || 'Unknown Artist',
             cover: getHighQualityImage(track), 
             audioUrl: originalUrl ? `${baseUrl}/api/stream?url=${encodeURIComponent(originalUrl)}` : null, 
@@ -90,33 +91,30 @@ const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
         
-        // 1. Instant Cache Return (0ms latency)
         if (cache.trending[lang] && (Date.now() - cache.trending[lang].timestamp < CACHE_TTL)) {
             return res.json({ success: true, data: cache.trending[lang].data });
         }
 
-        // 2. Execute Racing Engine
+        // CRITICAL FIX: Relaxed query strings. Avoids exact-match title failures on specific proxies.
         const trendingQueries = { 
-            'all': 'top+charts+india', 
-            'english': 'english+hit+songs', 
-            'tamil': 'latest+tamil+hits', 
-            'hindi': 'latest+hindi+hits', 
-            'telugu': 'latest+telugu+hits', 
-            'malayalam': 'latest+malayalam+hits', 
-            'japanese': 'jpop+anime+hits' 
+            'all': 'top hits', 
+            'english': 'english top hits', 
+            'tamil': 'tamil top hits', 
+            'hindi': 'hindi top hits', 
+            'telugu': 'telugu top hits', 
+            'malayalam': 'malayalam top hits', 
+            'japanese': 'jpop anime hits' 
         };
-        const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
+        const queryParam = trendingQueries[lang] || `${lang} top hits`;
         const rawData = await fetchFromSaavn(queryParam);
         
         const processedData = deduplicateTracks(processResults(rawData, req, lang));
 
-        // 3. Fallback Mechanism (Prevent endless spinning)
         if (processedData.length === 0) {
             if (cache.trending[lang]) return res.json({ success: true, data: cache.trending[lang].data });
-            return res.json({ success: true, data: [] }); // Empty array forces frontend to stop spinning
+            return res.json({ success: true, data: [] });
         }
 
-        // 4. Save to Cache and Return
         cache.trending[lang] = { timestamp: Date.now(), data: processedData };
         res.json({ success: true, data: processedData });
 
