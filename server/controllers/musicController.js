@@ -1,31 +1,18 @@
 ﻿const axios = require('axios');
 
-// IN-MEMORY CACHE: Stores API results for 30 minutes to make loading instant
-const cache = {
-    trending: {},
-    search: {}
-};
-const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+// IN-MEMORY CACHE (Hyper-Optimization)
+const cache = { trending: {}, search: {} };
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
-const SAAVN_BASE_URLS = [
-    'https://saavn.dev/api',
-    'https://jiosaavn-api-privatecvc2.vercel.app/api',
-    'https://saavn.sumit.co/api'
+// THE PROVEN PROXY POOL (The "Yesterday" Approach)
+const SAAVN_PROXIES = [
+    'https://saavn.dev/api/search/songs',
+    'https://saavn.sumit.co/api/search/songs',
+    'https://jiosaavn-api-privatecvc2.vercel.app/search/songs',
+    'https://jiosaavn-api-sigma-sandy.vercel.app/api/search/songs'
 ];
 
 const ARTIST_QUERIES = { 'ar_rahman': 'A.R. Rahman', 'anirudh': 'Anirudh Ravichander', 'ilaiyaraaja': 'Ilaiyaraaja', 'yuvan': 'Yuvan Shankar Raja', 'harris_jayaraj': 'Harris Jayaraj' };
-
-const fetchFromSaavn = async (endpoint) => {
-    const promises = SAAVN_BASE_URLS.map(base => 
-        axios.get(`${base}${endpoint}`, { timeout: 5000 })
-            .then(res => {
-                const data = res.data?.data || res.data;
-                if (data && (data.results || data.songs || Array.isArray(data))) return data;
-                throw new Error("Invalid payload");
-            })
-    );
-    try { return await Promise.any(promises); } catch (err) { return null; }
-};
 
 const getFullLengthAudio = (track) => {
     const downloadUrls = track.downloadUrl || track.download_url || track.media_urls || track.urls;
@@ -57,11 +44,35 @@ const deduplicateTracks = (tracks) => {
     return uniqueTracks;
 };
 
-const processResults = (rawTracks, req) => {
+// THE RACING ENGINE: Fires all proxies simultaneously. First to answer wins.
+const fetchFromSaavn = async (query) => {
+    const promises = SAAVN_PROXIES.map(proxy => 
+        axios.get(`${proxy}?query=${encodeURIComponent(query)}&limit=50`, { timeout: 3500 })
+            .then(res => {
+                const data = res.data?.data?.results || res.data?.results || res.data?.data || res.data;
+                if (Array.isArray(data) && data.length > 0) return data;
+                throw new Error("Invalid payload");
+            })
+    );
+    try { 
+        return await Promise.any(promises); 
+    } catch (err) { 
+        return []; 
+    }
+};
+
+const processResults = (rawTracks, req, targetLang = 'all') => {
     if (!rawTracks || !Array.isArray(rawTracks)) return [];
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
     return rawTracks.map(track => {
+        const trackLang = String(track.language || track.more_info?.language || "").toLowerCase();
+        
+        // Strict Language Guard to prevent Hindi bleed in English tab
+        if (targetLang !== 'all' && targetLang !== 'japanese' && trackLang) {
+            if (!trackLang.includes(targetLang)) return null; 
+        }
+
         const originalUrl = getFullLengthAudio(track);
         return {
             id: track.id || Math.random().toString(),
@@ -79,38 +90,47 @@ const fetchTrending = async (req, res) => {
     try {
         const lang = req.query.lang ? req.query.lang.toLowerCase() : 'all';
         
-        // CACHE CHECK: If we already fetched this recently, return it instantly (0ms load time)
+        // 1. Instant Cache Return (0ms latency)
         if (cache.trending[lang] && (Date.now() - cache.trending[lang].timestamp < CACHE_TTL)) {
             return res.json({ success: true, data: cache.trending[lang].data });
         }
 
-        let data;
-        // SINGLE-HOP FETCH: Reverted to a single blazing-fast query to eliminate proxy hangups
-        if (lang === 'english') {
-            data = await fetchFromSaavn(`/search/songs?query=english+top+hits+2024+global&limit=50`);
-        } else {
-            const trendingQueries = { 'all': 'top+charts+india', 'tamil': 'latest+tamil+hits', 'hindi': 'latest+hindi+hits', 'telugu': 'latest+telugu+hits', 'malayalam': 'latest+malayalam+hits', 'japanese': 'jpop+anime+hits' };
-            const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
-            data = await fetchFromSaavn(`/search/songs?query=${queryParam}&limit=50`);
-        }
-
-        const processedData = deduplicateTracks(processResults(data?.results || [], req));
+        // 2. Execute Racing Engine
+        const trendingQueries = { 
+            'all': 'top+charts+india', 
+            'english': 'english+hit+songs', 
+            'tamil': 'latest+tamil+hits', 
+            'hindi': 'latest+hindi+hits', 
+            'telugu': 'latest+telugu+hits', 
+            'malayalam': 'latest+malayalam+hits', 
+            'japanese': 'jpop+anime+hits' 
+        };
+        const queryParam = trendingQueries[lang] || `${lang}+latest+hits`;
+        const rawData = await fetchFromSaavn(queryParam);
         
-        // CACHE SAVE: Store the result in RAM for the next 30 minutes
-        if (processedData.length > 0) {
-            cache.trending[lang] = { timestamp: Date.now(), data: processedData };
+        const processedData = deduplicateTracks(processResults(rawData, req, lang));
+
+        // 3. Fallback Mechanism (Prevent endless spinning)
+        if (processedData.length === 0) {
+            if (cache.trending[lang]) return res.json({ success: true, data: cache.trending[lang].data });
+            return res.json({ success: true, data: [] }); // Empty array forces frontend to stop spinning
         }
 
+        // 4. Save to Cache and Return
+        cache.trending[lang] = { timestamp: Date.now(), data: processedData };
         res.json({ success: true, data: processedData });
-    } catch (error) { res.status(500).json({ success: false, data: [] }); }
+
+    } catch (error) { 
+        res.status(500).json({ success: false, data: [] }); 
+    }
 };
 
 const getArtistPlaylist = async (req, res) => {
     try {
         const { artistId } = req.params;
         const query = ARTIST_QUERIES[artistId] || artistId;
-        const data = await fetchFromSaavn(`/search/songs?query=${encodeURIComponent(query)}&limit=50`);
-        res.json({ success: true, data: deduplicateTracks(processResults(data?.results || [], req)) });
+        const data = await fetchFromSaavn(query);
+        res.json({ success: true, data: deduplicateTracks(processResults(data, req, 'all')) });
     } catch (error) { res.status(500).json({ success: false, message: 'Error loading playlist' }); }
 };
 
@@ -118,8 +138,8 @@ const searchTracks = async (req, res) => {
     const { q } = req.query;
     if (!q) return res.json({ success: true, data: [] });
     try {
-        const data = await fetchFromSaavn(`/search/songs?query=${encodeURIComponent(q)}&limit=100`);
-        res.json({ success: true, data: deduplicateTracks(processResults(data?.results || [], req)) });
+        const data = await fetchFromSaavn(q);
+        res.json({ success: true, data: deduplicateTracks(processResults(data, req, 'all')) });
     } catch (error) { res.status(500).json({ success: false, data: [] }); }
 };
 
