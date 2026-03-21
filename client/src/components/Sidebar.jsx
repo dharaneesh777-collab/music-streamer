@@ -6,7 +6,6 @@ const Sidebar = () => {
     const navItems = [
         { path: '/', label: 'Home', icon: '🏠' },
         { path: '/search', label: 'Search', icon: '🔍' },
-        { path: '/status', label: 'Status', icon: '📱' },
         { path: '/playlists', label: 'Playlists', icon: '📚' }
     ];
 
@@ -39,3 +38,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
